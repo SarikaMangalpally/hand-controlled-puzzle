@@ -77,6 +77,11 @@ The final hand-control mode should:
 - Release the pinch to drop or place the tile.
 - Smooth cursor and gesture movement to reduce jitter.
 - Give visible feedback for cursor position, selected tile, and valid drops.
+- Keep webcam access opt-in through Hands mode. Mouse input remains available.
+- Process camera frames locally without recording or uploading them.
+- Stop capture when switching to Mouse, leaving the puzzle, or closing the app.
+- Cancel held hand input on lost/ambiguous tracking, focus loss, or resizing;
+  require an open pinch before another grab.
 
 ## Scoring And Leaderboard
 
@@ -146,6 +151,6 @@ Use `docs/` for project documentation, `src/` for game code, `assets/` for image
 
 Resolve these during implementation:
 
-- Whether webcam preview should always be visible.
+- Webcam preview currently has a visibility checkbox; validate its default during usability testing.
 - Whether large grids need further board zoom or magnified tile selection for hand input.
 - The exact activation and release gesture for any optional one-finger control mode.

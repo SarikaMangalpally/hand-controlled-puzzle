@@ -53,7 +53,34 @@ The default window is 1280x840 and supports resizing down to 1000x720.
 After setup, macOS users can also launch `Play Puzzle.command` from Finder.
 Pictures are bundled in `assets/`; gameplay works offline. SQLite data lives in
 `data/players.db`, and imported pictures in `data/images/`. Both are ignored by Git.
-This phase does not access the webcam; hand tracking is Phase 6.
+The camera is off by default. Optional Phase 6 hand input requires the setup below.
+
+## Hand Control
+
+```sh
+.venv/bin/python -m pip install -r requirements-cv.txt
+```
+
+During a puzzle, select Hands to start the default webcam. Allow camera access
+when macOS asks; if denied, enable it for the launching application in System
+Settings > Privacy & Security > Camera, then retry. Select Mouse, return to the
+menu, open the leaderboard, or close the game to stop capture. Physical mouse
+input remains available in Hands mode. The camera preview can be hidden using
+its checkbox; hiding the preview does not stop capture.
+
+Open the thumb/index pinch first, then pinch to grab and open to release. The
+index fingertip drives the cursor. Left and right hands have independent
+cursors and can hold different pieces. Pinch/release also activates game buttons.
+Frames are mirrored, processed locally, and never recorded or uploaded.
+The bundled MediaPipe model makes gameplay offline after dependency installation.
+
+Tracking loss, ambiguous hand identity, large cursor jumps, focus loss, and
+resizing cancel held moves safely. Open the pinch again before grabbing after
+cancellation. Camera errors fall back to mouse controls. Initial smoothing and
+pinch hysteresis are implemented; real-world precision tuning, especially for
+32x32 grids, remains Phase 7. Live two-hand usability testing is still pending.
+The pinned MediaPipe 0.10.21 build passed local model inference; 1.0.1 crashed
+during model initialization on the development Mac and is not used.
 
 Image selection uses Python's Tk support in a separate process to avoid the
 macOS Tk/SDL application conflict. Python 3.11 from python.org includes Tk;
@@ -72,6 +99,15 @@ capture UI screenshots, set `PUZZLE_CAPTURE_DIR` to an output directory:
 PUZZLE_CAPTURE_DIR=/tmp/puzzle-check PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 ```
 
+For an explicit live webcam check (opens the camera for 20 seconds after startup;
+saves no frames), run:
+
+```sh
+PYTHONPATH=src .venv/bin/python tests/webcam_smoke.py
+```
+
+The development Mac still needs OS camera authorization before live acceptance.
+
 ## Development
 
 Read [project instructions](docs/project_instructions.md), the
@@ -80,7 +116,10 @@ Read [project instructions](docs/project_instructions.md), the
 
 - `src/puzzle/model.py`: placement, ownership, and progress rules, with no Pygame dependency.
 - `src/puzzle/layout.py`: shared rendering and hit-test geometry.
-- `src/puzzle/app.py`: Pygame rendering and mouse event handling.
+- `src/puzzle/app.py`: Pygame rendering and shared pointer event handling.
+- `src/puzzle/gestures.py`: smoothing, pinch hysteresis, and independent hand states.
+- `src/puzzle/camera.py`: isolated webcam worker and MediaPipe inference.
+- `src/puzzle/hand_input.py`: camera lifecycle and gesture-to-game integration.
 - `src/puzzle/menus.py`: profile, gallery/setup, and leaderboard screens.
 - `src/puzzle/storage.py`: SQLite profiles, attempts, rankings, and personal bests.
 - `src/puzzle/gallery.py`: image import, local copies, and gallery discovery.
@@ -88,10 +127,9 @@ Read [project instructions](docs/project_instructions.md), the
 - `assets/`: bundled artwork and its generation prompt.
 - `tests/`: rules, input sequences, and rendering checks.
 
-The model accepts independent pointer IDs for future two-hand input; the current
-build connects only the mouse. Webcam tracking and single-finger interaction are not
-implemented yet. Pygame is the only current third-party dependency. Add OpenCV,
-MediaPipe, and NumPy when the relevant phase needs them.
+Mouse-only installation requires only Pygame. Hand input adds MediaPipe, OpenCV,
+and NumPy through `requirements-cv.txt`. Single-finger-only interaction is not
+implemented; its activation/release gesture remains an open decision.
 
 Work on a task branch. Check status before branching. Pull before merging into
 `master` when a remote exists; merge and push after approval. Report missing

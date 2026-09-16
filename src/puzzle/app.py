@@ -1,4 +1,4 @@
-"""Pygame screens, rendering, and mouse input."""
+"""Pygame screens, rendering, and shared pointer input."""
 
 from pathlib import Path
 import sqlite3
@@ -12,6 +12,7 @@ from .model import MIN_GRID, MAX_GRID, Location, Puzzle
 from .storage import Store
 from .gallery import Gallery, choose_image, square_image
 from .menus import Menus
+from .hand_input import HandInput
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -63,13 +64,14 @@ class PuzzleApp:
         self.notice_until = 0
         self.confirm_restart = False
         self.pending_action = "restart"
-        self.pressed_button: str | None = None
+        self.pressed_buttons = {}
+        self.hands = HandInput(self, ROOT / 'assets/models/hand_landmarker.task')
         self.menus = Menus(self)
         self._resize(window_size)
         pygame.key.start_text_input()
 
     def _resize(self, size: tuple[int, int]) -> None:
-        self.puzzle.cancel_all()
+        self.cancel_inputs()
         size = (max(MIN_SIZE[0], size[0]), max(MIN_SIZE[1], size[1]))
         if self.screen.get_size() != size:
             self.screen = pygame.display.set_mode(size, pygame.RESIZABLE)
@@ -169,6 +171,7 @@ class PuzzleApp:
             self.results_return = self.scene
             self.scene = "leaderboard"
             self.scores_page = 0
+            self.hands.stop()
         except sqlite3.Error as error:
             self._notify(f"Cannot read scores: {error}")
 
@@ -186,13 +189,13 @@ class PuzzleApp:
 
     def _button(self, rect: pygame.Rect, label: str, primary: bool = False,
                 disabled: bool = False) -> None:
-        hover = rect.collidepoint(self.pointer)
+        hover = any(rect.collidepoint(pos) for pos in [self.pointer, *self.hands.positions.values()])
         fill = ("#096451" if hover else ACCENT) if primary else (
             "#e0e7eb" if hover else "#ffffff")
         if disabled:
             fill = "#dce4e8"
-        elif hover and self.pressed_button:
-            if self._active_buttons().get(self.pressed_button) == rect:
+        elif hover and self.pressed_buttons:
+            if any(self._active_buttons().get(action) == rect for action in self.pressed_buttons.values()):
                 fill = "#075344" if primary else "#cbd7de"
         pygame.draw.rect(self.screen, fill, rect, border_radius=6)
         if not primary:
@@ -220,9 +223,18 @@ class PuzzleApp:
             return {"restart": buttons["restart"], "menu": buttons["cancel"],
                     "leaderboard" if self.result_saved else "retry_save": buttons["result"]}
         return {"new": self.layout.restart, "menu": self._menu_rect(),
+                **self._input_buttons(),
                 "reference": self.layout.reference,
                 "tray_prev": pygame.Rect(self.layout.tray.x, self.layout.tray.bottom + 12, 44, 36),
                 "tray_next": pygame.Rect(self.layout.tray.right - 44, self.layout.tray.bottom + 12, 44, 36)}
+
+    def _input_buttons(self):
+        x = self.screen.get_width() - 448
+        buttons = {'mouse_mode': pygame.Rect(x, 33, 72, 42),
+                   'hands_mode': pygame.Rect(x + 80, 33, 72, 42)}
+        if self.hands.session is not None:
+            buttons['camera_preview'] = pygame.Rect(self.layout.reference.right + 24, 150, 170, 22)
+        return buttons
 
     def _menu_rect(self) -> pygame.Rect:
         menu = self.layout.restart.move(-112, 0)
@@ -238,23 +250,33 @@ class PuzzleApp:
         self.scene = "puzzle"
         self.confirm_restart = False
         self.notice = ""
-        self.pressed_button = None
+        self.cancel_inputs()
         self.viewing_reference = False
         self._resize(self.screen.get_size())
         pygame.key.stop_text_input()
 
     def _show_start(self) -> None:
-        self.puzzle.cancel_all()
+        self.cancel_inputs()
+        self.hands.stop()
         self.scene = "start"
         self.confirm_restart = False
         self.players = self.store.players()
         pygame.key.start_text_input()
 
     def _activate(self, action: str) -> None:
+        if action in ('reference', 'close_reference', 'new', 'menu', 'cancel', 'confirm', 'restart'):
+            self.cancel_inputs()
         if self.scene == "setup" and self.editing_grid and action not in ("grid_field", "grid_less", "grid_more"):
             if not self._commit_grid():
                 return
-        if action == "start":
+        if action == 'hands_mode':
+            self.hands.start()
+        elif action == 'mouse_mode':
+            self.cancel_inputs()
+            self.hands.stop()
+        elif action == 'camera_preview':
+            self.hands.show_preview = not self.hands.show_preview
+        elif action == "start":
             if self.player_name.strip():
                 self._select_player(self.player_name)
         elif action.startswith("player:"):
@@ -333,8 +355,10 @@ class PuzzleApp:
         elif event.type == pygame.VIDEORESIZE:
             self._resize(event.size)
         elif event.type == pygame.WINDOWFOCUSLOST:
-            self.puzzle.cancel_all()
-            self.pressed_button = None
+            self.cancel_inputs()
+            self.hands.focused = False
+        elif event.type == pygame.WINDOWFOCUSGAINED:
+            self.hands.focused = True
         elif self.scene == "start" and event.type == pygame.TEXTINPUT:
             candidate = self.player_name + "".join(char for char in event.text if char.isprintable())
             if len(candidate) <= 24 and self.fonts[20].size(candidate)[0] <= 320:
@@ -365,36 +389,51 @@ class PuzzleApp:
               and self._can_play()):
             self.set_tray_page(self.tray_page + (1 if event.key == pygame.K_RIGHT else -1))
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            self.puzzle.cancel_all()
+            self.cancel_inputs()
             self.confirm_restart = False
             self.viewing_reference = False
-            self.pressed_button = None
         elif event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
                             pygame.MOUSEBUTTONUP):
             self.pointer = event.pos
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                self.pressed_button = next((name for name, rect in
-                                            self._active_buttons().items()
-                                            if rect.collidepoint(event.pos)), None)
-                if self._can_play() and not self.pressed_button:
-                    location = self.layout.location_at(event.pos)
-                    if location is not None:
-                        self.puzzle.pick_up("mouse", location)
+                self.pointer_down('mouse', event.pos)
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                action, self.pressed_button = self.pressed_button, None
-                if action:
-                    rect = self._active_buttons().get(action)
-                    if rect and rect.collidepoint(event.pos):
-                        self._activate(action)
-                elif "mouse" in self.puzzle.held:
-                    location = self.layout.location_at(event.pos)
-                    occupied = location is not None and self.puzzle.tile_at(location) is not None
-                    self.puzzle.drop("mouse", location)
-                    if self.puzzle.solved:
-                        self._save_result()
-                    if occupied:
-                        self.notice = "Space occupied"
-                        self.notice_until = pygame.time.get_ticks() + 1800
+                self.pointer_up('mouse', event.pos)
+
+    def cancel_pointer(self, identity):
+        self.puzzle.cancel(identity)
+        self.pressed_buttons.pop(identity, None)
+
+    def cancel_inputs(self):
+        self.puzzle.cancel_all()
+        self.pressed_buttons.clear()
+        self.hands.reset()
+
+    def pointer_down(self, identity, position):
+        action = next((name for name, rect in self._active_buttons().items()
+                       if rect.collidepoint(position)), None)
+        if action:
+            self.pressed_buttons[identity] = action
+        elif self._can_play():
+            location = self.layout.location_at(position)
+            if location is not None:
+                self.puzzle.pick_up(identity, location)
+
+    def pointer_up(self, identity, position):
+        action = self.pressed_buttons.pop(identity, None)
+        if action:
+            rect = self._active_buttons().get(action)
+            if rect and rect.collidepoint(position):
+                self._activate(action)
+        elif identity in self.puzzle.held:
+            location = self.layout.location_at(position)
+            occupied = location is not None and self.puzzle.tile_at(location) is not None
+            self.puzzle.drop(identity, location)
+            if self.puzzle.solved:
+                self._save_result()
+                self.cancel_inputs()
+            if occupied:
+                self._notify('Space occupied')
 
     def _can_play(self) -> bool:
         return self.scene == 'puzzle' and not (
@@ -412,6 +451,21 @@ class PuzzleApp:
                   (36, 72), 17, MUTED)
         self._button(self.layout.restart, "New puzzle")
         self._button(self._menu_rect(), "Menu")
+        controls = self._input_buttons()
+        self._button(controls['mouse_mode'], 'Mouse', self.hands.session is None)
+        self._button(controls['hands_mode'], 'Hands', self.hands.session is not None)
+        if self.hands.session is not None:
+            rect = controls['camera_preview']
+            box = pygame.Rect(rect.x, rect.y + 2, 16, 16)
+            pygame.draw.rect(self.screen, ACCENT, box, 2)
+            if self.hands.show_preview:
+                pygame.draw.lines(self.screen, ACCENT, False,
+                                  [(box.x + 3, box.y + 8), (box.x + 7, box.y + 12),
+                                   (box.x + 13, box.y + 4)], 2)
+                if self.hands.preview is not None:
+                    self.screen.blit(self.hands.preview, (rect.x, self.layout.reference.y))
+            self.text('Camera preview', (rect.x + 22, rect.y), 14)
+            self.text(self.hands.status, (36, self.screen.get_height() - 50), 14, MUTED)
         score = self._score_text()
         score_width = self.fonts[17].size(score)[0]
         self.text(score, (self.screen.get_width() - 36 - score_width, 78), 17, MUTED)
@@ -432,6 +486,8 @@ class PuzzleApp:
         self.text("PIECES", (self.layout.tray.x, self.layout.tray.y - 28), 14, MUTED)
 
         target = self.layout.location_at(self.pointer)
+        targets = {self.layout.location_at(position)
+                   for position in [self.pointer, *self.hands.positions.values()]}
         for area, cells, slots in (("board", self.layout.board_cells, self.puzzle.board),
                                    ("tray", self.layout.tray_cells, self.puzzle.tray)):
             offset = self.layout.tray_offset if area == "tray" else 0
@@ -442,23 +498,26 @@ class PuzzleApp:
                 if tile is not None:
                     self.screen.blit(self.tiles[area][tile], rect)
                 pygame.draw.rect(self.screen, BACKGROUND, rect, 1)
-                if target == location:
+                if location in targets:
                     color = RED if self.puzzle.held and tile is not None else ACCENT
                     if tile is not None or self.puzzle.held:
                         pygame.draw.rect(self.screen, color, rect.inflate(-2, -2), 3)
 
-        if "mouse" in self.puzzle.held:
-            tile = self.puzzle.held["mouse"].tile
-            area = "board" if self.layout.board.collidepoint(self.pointer) else "tray"
+        for identity, held in self.puzzle.held.items():
+            position = self.pointer if identity == 'mouse' else self.hands.positions.get(identity)
+            if position is None:
+                continue
+            tile = held.tile
+            area = "board" if self.layout.board.collidepoint(position) else "tray"
             surface = self.tiles[area][tile]
-            rect = surface.get_rect(center=self.pointer)
+            rect = surface.get_rect(center=position)
             shadow = pygame.Surface((rect.width + 8, rect.height + 8), pygame.SRCALPHA)
             shadow.fill((20, 35, 35, 45))
             self.screen.blit(shadow, rect.move(4, 4))
             self.screen.blit(surface, rect)
             pygame.draw.rect(self.screen, ACCENT, rect, 3)
 
-        if target is not None and self.puzzle.size > 9:
+        if target is not None and self.puzzle.size > 9 and self.hands.session is None:
             tile = self.puzzle.tile_at(target)
             if tile is not None:
                 detail = pygame.transform.smoothscale(self.tiles['tray'][tile], (120, 120))
@@ -475,6 +534,7 @@ class PuzzleApp:
             self._draw_modal()
         if self.viewing_reference:
             self._draw_reference()
+        self.hands.draw_cursors()
 
     def _draw_modal(self) -> None:
         self._shade((25, 34, 39, 145))
@@ -509,6 +569,7 @@ class PuzzleApp:
         pygame.draw.line(self.screen, "white", (x + 6, y - 6), (x - 6, y + 6), 2)
 
     def close(self):
+        self.hands.stop()
         self.store.close()
 
     def run(self) -> None:
@@ -516,6 +577,7 @@ class PuzzleApp:
         while self.running:
             for event in pygame.event.get():
                 self.handle_event(event)
+            self.hands.update()
             self.draw()
             pygame.display.flip()
             clock.tick(60)

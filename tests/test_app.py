@@ -3,7 +3,8 @@ from pathlib import Path
 from random import Random
 import unittest
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from time import monotonic
 import sqlite3
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -13,6 +14,8 @@ import pygame
 
 from puzzle.app import PuzzleApp
 from puzzle.model import Location, Puzzle
+from puzzle.camera import CameraFrame
+from puzzle.gestures import Hand
 
 
 class AppTests(unittest.TestCase):
@@ -257,6 +260,97 @@ class AppTests(unittest.TestCase):
         self.assertFalse(self.app.puzzle.held)
         self.event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         self.assertFalse(self.app.viewing_reference)
+
+    def test_two_hand_replacement_and_cancel_preserve_every_tile(self):
+        app = self.app
+        self.drag(Location('tray', 0), Location('board', 0))
+        original = app.puzzle.board[0]
+        replacement = app.puzzle.tray[1]
+        app.pointer_down('Left', app.layout.board_cells[0].center)
+        app.pointer_down('Right', app.layout.tray_cells[1].center)
+        app.pointer_up('Right', app.layout.board_cells[0].center)
+        app.cancel_pointer('Left')
+        self.assertEqual(app.puzzle.board[0], replacement)
+        self.assertIn(original, app.puzzle.tray)
+        self.assertFalse(app.puzzle.held)
+        self.assertEqual(sorted(v for v in app.puzzle.board + app.puzzle.tray if v is not None), list(range(16)))
+
+    def test_camera_lifecycle_failure_and_preview_layout(self):
+        with patch('puzzle.hand_input.CameraSession') as factory:
+            session = factory.return_value
+            session.poll.return_value = None
+            self.app._activate('hands_mode')
+            self.app._activate('hands_mode')
+            factory.assert_called_once()
+            for grid in (2, 4, 32):
+                self.app.grid_size = grid
+                self.app._new_puzzle()
+                self.app._resize((1000, 720))
+                controls = self.app._input_buttons()
+                for rect in controls.values():
+                    self.assertTrue(self.app.screen.get_rect().contains(rect))
+                preview = pygame.Rect(controls['camera_preview'].x, self.app.layout.reference.y, 160, 120)
+                self.assertFalse(preview.colliderect(self.app.layout.tray))
+                self.assertTrue(self.app.screen.get_rect().contains(preview))
+                self.capture(f'hands-{grid}')
+            self.app._show_start()
+            session.close.assert_called_once()
+            self.assertIsNone(self.app.hands.session)
+            self.app._activate('hands_mode')
+            session.poll.return_value = CameraFrame(monotonic(), error='Camera unavailable')
+            self.app.hands.update()
+            self.assertIsNone(self.app.hands.session)
+            self.assertIn('Camera unavailable', self.app.notice)
+
+    def test_synthetic_camera_pinch_pick_drop_and_loss(self):
+        app = self.app
+        session = Mock()
+        app.hands.session = session
+        app.hands.started = monotonic()
+        width, height = app.screen.get_size()
+
+        def frame(position, ratio):
+            x, y = position
+            hand = Hand('Left', .08 + .84 * x / (width - 1),
+                        .10 + .80 * y / (height - 1), ratio)
+            session.poll.return_value = CameraFrame(monotonic(), (hand,))
+            app.hands.update()
+
+        origin = app.layout.tray_cells[0].center
+        tile = app.puzzle.tray[0]
+        frame(origin, .8)
+        frame(origin, .1)
+        self.assertEqual(app.puzzle.held['Left'].tile, tile)
+        frame(origin, .8)
+        self.assertEqual(app.puzzle.tray[0], tile)
+        frame(origin, .1)
+        session.poll.return_value = CameraFrame(monotonic(), ())
+        app.hands.update()
+        self.assertFalse(app.puzzle.held)
+        frame(origin, .8)
+        frame(origin, .1)
+        session.poll.return_value = None
+        app.hands.last_frame = monotonic() - 1
+        app.hands.update()
+        self.assertFalse(app.puzzle.held)
+        self.assertFalse(app.hands.positions)
+
+    def test_hand_modal_cancels_other_pointer_and_requires_new_press(self):
+        app = self.app
+        app.pointer_down('Left', app.layout.tray_cells[0].center)
+        button = app._menu_rect().center
+        app.pointer_down('Right', button)
+        app.pointer_up('Right', button)
+        self.assertTrue(app.confirm_restart)
+        self.assertFalse(app.puzzle.held)
+        self.assertFalse(app.pressed_buttons)
+
+    def test_camera_never_starts_implicitly(self):
+        with patch('puzzle.hand_input.CameraSession') as factory:
+            self.app._new_puzzle()
+            self.app.draw()
+            self.app.hands.update()
+            factory.assert_not_called()
 
 
 if __name__ == "__main__":

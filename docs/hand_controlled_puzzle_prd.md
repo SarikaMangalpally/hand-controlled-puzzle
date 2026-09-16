@@ -265,7 +265,7 @@ The project is successful when:
 
 These decisions can be finalized while building:
 
-- Whether the webcam preview should always be visible.
+- Preview currently has a visibility checkbox; validate its default during usability testing.
 - Whether large-grid hand input needs further board zoom or magnified tile selection.
 - The exact gesture for optional one-finger grab/release controls.
 
