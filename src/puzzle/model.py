@@ -6,7 +6,8 @@ from time import monotonic
 from typing import Callable, Literal
 
 
-DIFFICULTIES = {"Easy": 4, "Medium": 6, "Expert": 9}
+MIN_GRID = 2
+MAX_GRID = 32
 
 
 @dataclass(frozen=True)
@@ -24,8 +25,8 @@ class HeldPiece:
 class Puzzle:
     def __init__(self, size: int = 4, rng: Random | None = None,
                  clock: Callable[[], float] = monotonic):
-        if size < 2:
-            raise ValueError("Puzzle size must be at least 2.")
+        if not isinstance(size, int) or isinstance(size, bool) or not MIN_GRID <= size <= MAX_GRID:
+            raise ValueError("Grid size must be a whole number from 2 to 32.")
         self.size = size
         self.board: list[int | None] = [None] * (size * size)
         self.tray: list[int | None] = list(range(size * size))

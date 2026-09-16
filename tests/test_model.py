@@ -118,8 +118,9 @@ class PuzzleTests(unittest.TestCase):
     def test_invalid_locations_are_rejected(self):
         with self.assertRaises(IndexError):
             self.puzzle.pick_up("mouse", Location("board", -1))
-        with self.assertRaises(ValueError):
-            Puzzle(1)
+        for invalid in (1, 33, 4.5, True, None):
+            with self.assertRaises(ValueError):
+                Puzzle(invalid)
 
     def test_moves_count_only_successful_relocations_including_removal(self):
         origin = Location("tray", 0)

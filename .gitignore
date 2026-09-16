@@ -18,6 +18,8 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 data/scores.json
+data/images/
+data/*.db-*
 
 # OS and editor files
 .DS_Store

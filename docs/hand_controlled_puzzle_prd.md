@@ -13,7 +13,9 @@ The project will be built step by step, beginning with a working mouse-controlle
 Create an interactive puzzle game that combines computer vision, gesture control, and game-style UI. The final app should allow users to:
 
 - Enter a player name.
-- Select a difficulty level.
+- Create or select a local player profile.
+- Select a square grid size from 2 through 32.
+- Choose a built-in picture or import a local image.
 - Solve a jumbled image puzzle.
 - Use hand gestures to control puzzle pieces.
 - Track solve time and number of moves per puzzle.
@@ -26,7 +28,7 @@ The target users are players, students, and demo viewers who want to experience 
 
 ## 4. Core Experience
 
-The player opens the app, enters their name, chooses a difficulty level, and starts a puzzle. The app shows an empty grid, a reference image, and shuffled image pieces in an outside tray. The player searches for pieces and drags them into the grid. Incorrect placements stay until the player rearranges them. A live progress bar measures correct placement against the final image.
+The player opens the app, creates or selects a local named profile, chooses an image and square grid size, and starts a puzzle. The app shows an empty grid, a reference image, and shuffled image pieces in an outside tray. The player searches for pieces and drags them into the grid. Incorrect placements stay until the player rearranges them. A live progress bar measures correct placement against the final image without penalties.
 
 In the early version, the player can use the mouse. In the final version, the player uses webcam-based hand gestures.
 
@@ -37,27 +39,23 @@ In the early version, the player can use the mouse. In the final version, the pl
 - OpenCV for webcam input and image processing.
 - MediaPipe for hand, finger, and palm landmark detection.
 - NumPy for image slicing, grid calculations, and tile processing.
-- JSON or SQLite for local score storage.
+- SQLite for local profiles, image metadata, and completed attempts.
 
-## 6. Difficulty Levels
+## 6. Grid Sizes
 
-The game will include three fixed difficulty levels:
-
-| Difficulty | Grid Size | Description |
-|---|---:|---|
-| Easy | 4x4 | Starter level with larger tiles and easier gesture control. |
-| Medium | 6x6 | More challenging puzzle with smaller tiles. |
-| Expert | 9x9 | Advanced challenge requiring careful hand control and stable gesture smoothing. |
-
-Expert mode is intentionally challenging and will require extra attention to UI sizing, gesture accuracy, and movement smoothing.
+Replace the three initial difficulty levels with a numeric selector. Every integer
+from 2 through 32 is supported; N means an NxN board, so 32 means 1,024 pieces.
+Default to 4. Use a paged outside tray to keep every piece accessible. Large grids
+need extra attention to selection precision and gesture smoothing.
 
 ## 7. Gameplay Requirements
 
 ### 7.1 Puzzle Generation
 
 - The app should load a source image.
+- Offer a built-in picture gallery and local image import. Keep a reusable local copy of each import, without altering the original or uploading it to a server.
 - The image should be resized or cropped to fit the puzzle board.
-- The image should be divided into equal grid tiles based on selected difficulty.
+- The image should be divided into equal grid tiles based on the selected numeric grid size.
 - The grid starts empty, with all pieces shuffled into the outside tray.
 - Every piece appears exactly once across the board, tray, and pieces currently held.
 
@@ -71,6 +69,7 @@ Expert mode is intentionally challenging and will require extra attention to UI 
 - Invalid drops restore the piece to its origin, or to an empty tray slot if another hand has since filled that origin.
 - Completion is the number of pieces in their exact final grid positions divided by the total number of pieces. Show this as a progress bar and percentage. Removing a correct piece reduces progress.
 - Compare tile identity and position, not approximate visual similarity or filled-cell count.
+- No wrong-move penalties apply. Progress reflects only the percentage currently correct.
 - Each valid player action should count as one move.
 - A successful relocation into a different empty grid cell or tray slot counts once. Pickup, cancellation, rejected drops, and returning to the same slot do not count.
 - The app should detect when the puzzle is solved.
@@ -99,7 +98,7 @@ The final version should use webcam-based hand control:
 Each completed puzzle attempt should track:
 
 - Player name.
-- Difficulty level.
+- Picture identity.
 - Grid size.
 - Time taken to solve the puzzle.
 - Number of moves.
@@ -109,9 +108,13 @@ The score is evaluated per puzzle, not as a combined total across multiple puzzl
 
 ## 9. Leaderboard Requirements
 
+Local profiles store name, creation time, last selection, and visit count. Count
+completed attempts per player. Profiles are selected locally, without passwords
+or remote authentication. Keep the focus on the computer vision game.
+
 The leaderboard should:
 
-- Show top scores by difficulty.
+- Show top scores for the same picture and grid size.
 - Rank faster completion times higher.
 - Use fewer moves as a tie-breaker.
 - Show each player's personal best.
@@ -119,7 +122,7 @@ The leaderboard should:
 
 Recommended ranking order:
 
-1. Difficulty filter selected by user.
+1. Picture and grid-size filters selected during puzzle setup.
 2. Lowest solve time.
 3. Lowest move count.
 
@@ -128,15 +131,16 @@ Recommended ranking order:
 ### 10.1 Start Screen
 
 - App title.
-- Player name input.
-- Start button.
-- Leaderboard button.
+- Local player name input and profile creation.
+- Saved profile selection, visits, and solved counts.
+- Continue to puzzle setup.
 
-### 10.2 Difficulty Selection Screen
+### 10.2 Puzzle Setup Screen
 
-- Easy: 4x4.
-- Medium: 6x6.
-- Expert: 9x9.
+- Numeric square-grid size from 2 through 32.
+- Built-in and previously imported picture gallery.
+- Local image upload.
+- Start puzzle and leaderboard buttons.
 - Back button.
 
 ### 10.3 Puzzle Screen
@@ -144,7 +148,7 @@ Recommended ranking order:
 - Puzzle board.
 - Timer.
 - Move counter.
-- Difficulty label.
+- Grid-size label.
 - Player name.
 - Restart button.
 - Back or menu button.
@@ -161,7 +165,7 @@ Recommended ranking order:
 
 ### 10.5 Leaderboard Screen
 
-- Scores grouped or filtered by difficulty.
+- Scores scoped to the selected picture and grid size.
 - Player name.
 - Time.
 - Moves.
@@ -175,7 +179,7 @@ Recommended ranking order:
 - Puzzle tiles should be visually separated.
 - Text should be easy to read.
 - The layout should work comfortably for all three grid sizes.
-- Expert mode should keep tiles as large as possible.
+- Large-grid modes should keep tray pieces inspectable while showing the full board.
 - The player should receive clear feedback when selecting, moving, or placing a tile.
 
 ## 12. Build Phases
@@ -194,16 +198,16 @@ Recommended ranking order:
 
 - Add start screen.
 - Add player name input.
-- Prepare navigation for difficulty selection in Phase 3.
+- Prepare navigation for grid-size selection in Phase 3.
 - Add completion screen.
 - Add basic navigation between screens.
 
-### Phase 3: Difficulty Levels
+### Phase 3: Initial Grid Sizes
 
 - Add Easy 4x4.
 - Add Medium 6x6.
 - Add Expert 9x9.
-- Make board generation dynamic based on selected difficulty.
+- Make board generation dynamic. Phase 5 extends these initial levels to arbitrary sizes through 32x32.
 
 ### Phase 4: Timer and Move Tracking
 
@@ -215,8 +219,13 @@ Recommended ranking order:
 
 ### Phase 5: Score Saving and Leaderboard
 
+- Use SQLite and local named profiles, not password accounts.
+- Track profile visits, last selection, and completed-puzzle count.
+- Replace fixed difficulty levels with a numeric grid selector from 2 through 32.
+- Add built-in gallery selection and persistent local image import.
 - Save completed puzzle attempts locally.
-- Show leaderboard by difficulty.
+- Save each completed attempt only once, including retries after storage failures.
+- Show leaderboard by picture and grid size.
 - Show personal best score.
 - Rank by time and moves.
 
@@ -230,12 +239,12 @@ Recommended ranking order:
 - Control puzzle selection and movement with gestures.
 - Support two independently held pieces and replacement of a cell freed by the other hand.
 
-### Phase 7: Gesture Polish and Expert Mode
+### Phase 7: Gesture Polish and Large Grids
 
 - Add gesture smoothing.
 - Tune pinch sensitivity.
 - Improve tile selection accuracy.
-- Make 9x9 expert mode practical.
+- Tune precision for large grids, including 32x32.
 - Add visual hand cursor feedback.
 
 ## 13. Success Criteria
@@ -243,7 +252,8 @@ Recommended ranking order:
 The project is successful when:
 
 - The player can enter their name.
-- The player can choose Easy, Medium, or Expert.
+- The player can select any square grid size from 2 through 32.
+- The player can select a saved local profile and choose a built-in or imported image.
 - The app generates the correct puzzle grid.
 - The player can solve the puzzle.
 - Time and moves are tracked correctly for each puzzle.
@@ -255,10 +265,8 @@ The project is successful when:
 
 These decisions can be finalized while building:
 
-- Whether the game should include custom image upload.
 - Whether the webcam preview should always be visible.
-- Whether leaderboard data should use JSON or SQLite.
-- Whether expert mode should include extra zoom or magnified tile selection.
+- Whether large-grid hand input needs further board zoom or magnified tile selection.
 - The exact gesture for optional one-finger grab/release controls.
 
 ## 15. Living Change Log
@@ -271,3 +279,4 @@ Use this section to keep the PRD updated whenever the project requirements chang
 | 2026-09-16 | Moved PRD into the local `Solve puzzle - CV` project under `docs/`. | Keeps project planning documents inside the project folder as requested. |
 | 2026-09-16 | Clarified empty grid, shuffled outside pieces, incorrect placements, removal/replacement, progress percentage, and two-hand pinch interaction. | User-confirmed gameplay rules; replaces swap/slide ambiguity. |
 | 2026-09-16 | Adopted the seven-phase sequence and corrected the project folder name. | Keeps instructions and implementation milestones consistent. |
+| 2026-09-16 | Confirmed 32x32 maximum, no penalties, local player profiles, SQLite, and uploaded/built-in images. | User refinements; computer vision remains the project core. |

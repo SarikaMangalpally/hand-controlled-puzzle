@@ -8,7 +8,7 @@
 | 2 | Start screen, player name, completion flow, navigation | Complete; 21 tests passing |
 | 3 | Difficulty selection, 6x6 and 9x9 layouts | Complete; 23 tests passing |
 | 4 | Timer and valid-move tracking | Complete; 27 tests passing |
-| 5 | Saved scores, leaderboard, personal bests | Pending; JSON/SQLite decision open |
+| 5 | SQLite profiles/results, gallery/upload, custom 2-32 grids | Complete; 41 tests passing |
 | 6 | Webcam, two-hand tracking, thumb/index pinch | Pending |
 | 7 | Gesture smoothing, tracking-loss behavior, expert tuning | Pending |
 
@@ -49,11 +49,21 @@ Automated mouse events and native startup checks are not a substitute for a
 human usability test. Webcam tracking and two-hand gesture behavior are not yet
 implemented or tested on camera; only the underlying multi-pointer rules are tested.
 
+Phase 5 verification: 41 automated tests, including full mouse solves through
+32x32, persistence after reopening the database, imported-image reuse after
+deleting the original test file, idempotent saves, save retries, ranking filters,
+and exact ties. Setup, profile, completion, leaderboard, and large-grid screenshots
+were inspected. A native 32x32 Cocoa run and isolated Tk initialization passed.
+The native check exposed a Tk/SDL process conflict; the chooser now runs in a
+separate process. File selection/cancellation is covered at the process boundary
+with mocked responses; a full manual chooser interaction remains a usability check.
+
 ## Open Decisions For Later Phases
 
-Resolve these before their implementation: JSON versus SQLite score storage,
-custom image selection, webcam preview visibility, optional one-finger gesture,
-and expert-mode magnification. Initial hand input will use thumb/index pinching.
+SQLite, local profiles without passwords, uploaded/built-in pictures, and custom
+grids through 32x32 are confirmed. No incorrect-move penalties apply. Remaining
+decisions concern webcam preview visibility, optional one-finger gestures, and
+further large-grid magnification. Initial hand input will use thumb/index pinching.
 
 ## Git
 
@@ -62,7 +72,8 @@ Each phase has its own checkpoint branch, stacked from the preceding phase:
 - `feat/phase-1-puzzle`, based on `docs/project-instructions`.
 - `feat/phase-2-screens`.
 - `feat/phase-3-difficulty`.
-- `feat/phase-4-scoring`, containing the complete current build.
+- `feat/phase-4-scoring`.
+- `feat/phase-5-profiles-gallery`, containing the complete current build.
 
 Changes are not merged into `master`. No remote is configured. Merging follows
 approval; pushing also requires a configured remote.

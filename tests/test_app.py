@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 from random import Random
 import unittest
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+import sqlite3
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -9,25 +12,33 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 
 from puzzle.app import PuzzleApp
-from puzzle.model import DIFFICULTIES, Location, Puzzle
+from puzzle.model import Location, Puzzle
 
 
 class AppTests(unittest.TestCase):
     def setUp(self):
-        self.app = PuzzleApp()
+        self.temporary = TemporaryDirectory()
+        self.app = PuzzleApp(data_dir=Path(self.temporary.name))
+        self.app._select_player("Alex")
         self.app.puzzle = Puzzle(rng=Random(7))
         self.app.scene = "puzzle"
         self.app.player_name = "Alex"
 
     def tearDown(self):
+        self.app.close()
         pygame.quit()
+        self.temporary.cleanup()
 
     def event(self, kind, **values):
         self.app.handle_event(pygame.event.Event(kind, values))
 
     def drag(self, origin, target):
+        if origin.area == "tray":
+            self.app.set_tray_page(origin.index // 16)
         self.event(pygame.MOUSEBUTTONDOWN, button=1,
                    pos=self.app.layout.rect_for(origin).center)
+        if target.area == "tray":
+            self.app.set_tray_page(target.index // 16)
         self.event(pygame.MOUSEMOTION, pos=self.app.layout.rect_for(target).center)
         self.event(pygame.MOUSEBUTTONUP, button=1,
                    pos=self.app.layout.rect_for(target).center)
@@ -130,7 +141,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.app.player_name, "Alex")
         self.capture("player-entry")
         self.event(pygame.KEYDOWN, key=pygame.K_RETURN)
-        self.assertEqual(self.app.scene, "difficulty")
+        self.assertEqual(self.app.scene, "setup")
 
     def test_menu_requires_confirmation_and_preserves_player_name(self):
         self.drag(Location("tray", 0), Location("board", 0))
@@ -141,11 +152,12 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.app.scene, "start")
         self.assertEqual(self.app.player_name, "Alex")
 
-    def test_all_difficulties_layout_and_complete_mouse_solve(self):
-        for name, size in DIFFICULTIES.items():
-            self.app.scene = "difficulty"
-            self.app._activate(name)
-            self.capture(f"difficulty-{name}")
+    def test_custom_sizes_layout_and_complete_mouse_solve_including_32(self):
+        for size in (2, 4, 6, 9, 17, 32):
+            self.app.scene = "setup"
+            self.app.grid_text = str(size)
+            self.app._commit_grid()
+            self.capture(f"setup-{size}")
             self.app._activate("begin")
             self.assertEqual(self.app.puzzle.size, size)
             for window in ((1000, 720), (1280, 840), (1600, 1000)):
@@ -153,13 +165,88 @@ class AppTests(unittest.TestCase):
                 bounds = self.app.screen.get_rect()
                 for rect in self.app.layout.board_cells + self.app.layout.tray_cells:
                     self.assertTrue(bounds.contains(rect))
-                    self.assertGreaterEqual(rect.width, 30)
-                self.capture(f"{name}-{window[0]}")
+                    self.assertGreaterEqual(rect.width, 14)
+                self.capture(f"grid-{size}-{window[0]}")
             for tile in range(size * size):
                 self.drag(Location("tray", self.app.puzzle.tray.index(tile)),
                           Location("board", tile))
             self.assertTrue(self.app.puzzle.solved)
-            self.capture(f"solved-{name}")
+            self.assertTrue(self.app.result_saved)
+            self.assertEqual(len(self.app.store.leaderboard(self.app.picture.id, size)), 1)
+            self.capture(f"solved-{size}")
+
+    def test_result_is_saved_once_and_visible_in_profile_and_leaderboard(self):
+        for tile in range(16):
+            self.drag(Location("tray", self.app.puzzle.tray.index(tile)), Location("board", tile))
+        self.assertTrue(self.app.result_saved)
+        self.app._save_result()
+        self.app._activate("leaderboard")
+        self.capture("leaderboard")
+        self.assertEqual(len(self.app.scores), 1)
+        self.assertEqual(self.app.best['id'], self.app.attempt_id)
+        self.app._activate("back_results")
+        self.assertEqual(self.app.scene, "puzzle")
+        self.app._activate("menu")
+        self.assertEqual(self.app.players[0]['solved'], 1)
+        self.capture("profile-with-result")
+
+    def test_save_failure_keeps_result_and_retry_does_not_duplicate(self):
+        with patch.object(self.app.store, 'save_result', side_effect=sqlite3.OperationalError('locked')):
+            for tile in range(16):
+                self.drag(Location("tray", self.app.puzzle.tray.index(tile)), Location("board", tile))
+            self.assertFalse(self.app.result_saved)
+            self.capture("save-error")
+            self.app._activate('restart')
+            self.assertTrue(self.app.puzzle.solved)
+        self.app._activate('retry_save')
+        self.assertTrue(self.app.result_saved)
+        self.assertEqual(len(self.app.store.leaderboard(self.app.picture.id, 4)), 1)
+
+    def test_grid_input_bounds_and_type_to_replace(self):
+        self.app.scene = 'setup'
+        self.app._activate('grid_field')
+        self.event(pygame.TEXTINPUT, text='32')
+        self.event(pygame.KEYDOWN, key=pygame.K_RETURN)
+        self.assertEqual(self.app.grid_size, 32)
+        self.app._activate('grid_more')
+        self.assertEqual(self.app.grid_size, 32)
+        for invalid in ('', '0', '1', '33', '-1', '2.5'):
+            self.app.grid_text = invalid
+            self.assertFalse(self.app._commit_grid())
+        self.app.grid_text = '2'
+        self.assertTrue(self.app._commit_grid())
+        self.app._activate('grid_less')
+        self.assertEqual(self.app.grid_size, 2)
+
+    def test_image_import_cancel_invalid_and_selected_picture(self):
+        self.app.scene = 'setup'
+        original = self.app.picture.id
+        with patch('puzzle.app.choose_image', return_value=None):
+            self.app._activate('import')
+        self.assertEqual(self.app.picture.id, original)
+        with patch('puzzle.app.choose_image', return_value=self.app.picture.path):
+            self.app._activate('import')
+        self.assertTrue(self.app.picture.id.startswith('upload:'))
+        self.capture('uploaded-gallery')
+        with patch('puzzle.app.choose_image', return_value=Path(self.temporary.name) / 'missing.jpg'):
+            self.app._activate('import')
+        self.assertIn('Image import failed', self.app.notice)
+
+    def test_tray_page_navigation_keeps_held_piece_and_global_slot_identity(self):
+        self.app.grid_size = 32
+        self.app._new_puzzle()
+        self.app.set_tray_page(63)
+        self.assertEqual(self.app.layout.location_at(self.app.layout.tray_cells[0].center),
+                         Location('tray', 1008))
+        tile = self.app.puzzle.tray[1008]
+        self.event(pygame.MOUSEBUTTONDOWN, button=1, pos=self.app.layout.tray_cells[0].center)
+        self.event(pygame.MOUSEWHEEL, y=1)
+        self.assertEqual(self.app.tray_page, 62)
+        self.assertEqual(self.app.puzzle.held['mouse'].tile, tile)
+        self.event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
+        self.assertEqual(self.app.puzzle.tray[1008], tile)
+        self.app.set_tray_page(1000)
+        self.assertEqual(self.app.tray_page, 63)
 
     def test_reference_expansion_blocks_board_input_and_closes_on_escape(self):
         self.app._activate("reference")
