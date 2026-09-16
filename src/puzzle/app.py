@@ -5,7 +5,7 @@ from pathlib import Path
 import pygame
 
 from .layout import Layout
-from .model import Location, Puzzle
+from .model import DIFFICULTIES, Location, Puzzle
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +30,8 @@ class PuzzleApp:
         self.puzzle = Puzzle()
         self.scene = "start"
         self.player_name = ""
+        self.difficulty = "Easy"
+        self.viewing_reference = False
         self.pointer = (0, 0)
         self.running = True
         self.notice = ""
@@ -56,6 +58,8 @@ class PuzzleApp:
             self.source, (round(self.source.get_width() * ratio),
                           round(self.source.get_height() * ratio)))
         self.preview = pygame.transform.smoothscale(crop, self.layout.reference.size)
+        reference_edge = min(size[0] - 120, size[1] - 120)
+        self.large_reference = pygame.transform.smoothscale(crop, (reference_edge,) * 2)
         self.tiles: dict[str, list[pygame.Surface]] = {}
         for area, cells in (("board", self.layout.board_cells),
                             ("tray", self.layout.tray_cells)):
@@ -92,24 +96,38 @@ class PuzzleApp:
                 "restart": pygame.Rect(width // 2 + 12, height // 2 + 48, 156, 44)}
 
     def _active_buttons(self) -> dict[str, pygame.Rect]:
+        if self.viewing_reference:
+            return {"close_reference": self.screen.get_rect()}
         if self.scene == "start":
             return {"start": pygame.Rect(48, self.screen.get_height() // 2 + 98, 360, 48)}
+        if self.scene == "difficulty":
+            middle = self.screen.get_height() // 2
+            choices = {name: pygame.Rect(48 + index * 184, middle + 16, 176, 52)
+                       for index, name in enumerate(DIFFICULTIES)}
+            return {**choices, "back": pygame.Rect(48, middle + 98, 176, 48),
+                    "begin": pygame.Rect(232, middle + 98, 176, 48)}
         if self.confirm_restart:
             buttons = self._modal_buttons()
             return {"cancel": buttons["cancel"], "confirm": buttons["restart"]}
         if self.puzzle.solved:
             buttons = self._modal_buttons()
             return {"restart": buttons["restart"], "menu": buttons["cancel"]}
+        return {"new": self.layout.restart, "menu": self._menu_rect(),
+                "reference": self.layout.reference}
+
+    def _menu_rect(self) -> pygame.Rect:
         menu = self.layout.restart.move(-112, 0)
         menu.width = 100
-        return {"new": self.layout.restart, "menu": menu}
+        return menu
 
     def _new_puzzle(self) -> None:
-        self.puzzle = Puzzle()
+        self.puzzle = Puzzle(DIFFICULTIES[self.difficulty])
         self.scene = "puzzle"
         self.confirm_restart = False
         self.notice = ""
         self.pressed_button = None
+        self.viewing_reference = False
+        self._resize(self.screen.get_size())
         pygame.key.stop_text_input()
 
     def _show_start(self) -> None:
@@ -122,7 +140,16 @@ class PuzzleApp:
         if action == "start":
             if self.player_name.strip():
                 self.player_name = self.player_name.strip()
-                self._new_puzzle()
+                self.scene = "difficulty"
+                pygame.key.stop_text_input()
+        elif action in DIFFICULTIES:
+            self.difficulty = action
+        elif action == "begin":
+            self._new_puzzle()
+        elif action == "back":
+            self._show_start()
+        elif action in ("reference", "close_reference"):
+            self.viewing_reference = action == "reference"
         elif action in ("new", "menu"):
             if action == "menu" and self.puzzle.solved:
                 self._show_start()
@@ -157,9 +184,15 @@ class PuzzleApp:
                 self.player_name = self.player_name[:-1]
             elif event.key == pygame.K_RETURN:
                 self._activate("start")
+        elif self.scene == "difficulty" and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self._show_start()
+            elif event.key == pygame.K_RETURN:
+                self._new_puzzle()
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self.puzzle.cancel_all()
             self.confirm_restart = False
+            self.viewing_reference = False
             self.pressed_button = None
         elif event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
                             pygame.MOUSEBUTTONUP):
@@ -169,7 +202,7 @@ class PuzzleApp:
                                             self._active_buttons().items()
                                             if rect.collidepoint(event.pos)), None)
                 if (self.scene == "puzzle" and not self.pressed_button
-                        and not (self.confirm_restart or self.puzzle.solved)):
+                        and not (self.confirm_restart or self.puzzle.solved or self.viewing_reference)):
                     location = self.layout.location_at(event.pos)
                     if location is not None:
                         self.puzzle.pick_up("mouse", location)
@@ -188,16 +221,16 @@ class PuzzleApp:
                         self.notice_until = pygame.time.get_ticks() + 1800
 
     def draw(self) -> None:
-        if self.scene == "start":
-            self._draw_start()
+        if self.scene in ("start", "difficulty"):
+            self._draw_setup()
             return
         self.screen.fill(BACKGROUND)
         self.text("Hand-Controlled Puzzle", (36, 28), 32)
-        self.text(f"{self.player_name}  /  Easy  /  4 x 4", (36, 72), 17, MUTED)
+        size = self.puzzle.size
+        self.text(f"{self.player_name}  /  {self.difficulty}  /  {size} x {size}",
+                  (36, 72), 17, MUTED)
         self._button(self.layout.restart, "New puzzle")
-        menu = self.layout.restart.move(-112, 0)
-        menu.width = 100
-        self._button(menu, "Menu")
+        self._button(self._menu_rect(), "Menu")
         percent = self.puzzle.progress * 100
         self.text(f"{self.puzzle.correct_count} / {len(self.puzzle.board)} correct",
                   (36, 99), 14, MUTED)
@@ -243,6 +276,8 @@ class PuzzleApp:
             self.text(self.notice, (36, self.screen.get_height() - 40), 17, RED)
         if self.confirm_restart or self.puzzle.solved:
             self._draw_modal()
+        if self.viewing_reference:
+            self._draw_reference()
 
     def _draw_modal(self) -> None:
         overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
@@ -255,20 +290,42 @@ class PuzzleApp:
         title = "Start a new puzzle?" if self.pending_action == "restart" else "Return to menu?"
         self.text("Picture complete" if solved else title,
                   (rect.x + 32, rect.y + 34), 24)
-        self.text("100%  /  All 16 pieces in place" if solved else "Current progress will be cleared.",
+        self.text(f"100%  /  All {len(self.puzzle.board)} pieces in place" if solved
+                  else "Current progress will be cleared.",
                   (rect.x + 32, rect.y + 82), 17, MUTED)
         buttons = self._modal_buttons()
         self._button(buttons["cancel"], "Menu" if solved else "Keep playing")
         label = "New puzzle" if self.pending_action == "restart" else "Return to menu"
         self._button(buttons["restart"], "Play again" if solved else label, True)
 
-    def _draw_start(self) -> None:
+    def _draw_reference(self) -> None:
+        shade = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        shade.fill((10, 22, 27, 220))
+        self.screen.blit(shade, (0, 0))
+        rect = self.large_reference.get_rect(center=self.screen.get_rect().center)
+        self.screen.blit(self.large_reference, rect)
+        self.text("Harbor in Bloom", (rect.x, rect.y - 30), 20, "white")
+        x, y = rect.right - 12, rect.y - 20
+        pygame.draw.line(self.screen, "white", (x - 6, y - 6), (x + 6, y + 6), 2)
+        pygame.draw.line(self.screen, "white", (x + 6, y - 6), (x - 6, y + 6), 2)
+
+    def _draw_setup(self) -> None:
         self.screen.blit(self.cover, self.cover.get_rect(center=self.screen.get_rect().center))
         shade = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
         shade.fill((10, 22, 27, 165))
         self.screen.blit(shade, (0, 0))
         middle = self.screen.get_height() // 2
         self.text("HAND-CONTROLLED PUZZLE", (48, middle - 112), 17, "#dce4e8")
+        if self.scene == "difficulty":
+            self.text("Choose difficulty", (48, middle - 74), 32, "white")
+            self.text(self.player_name, (48, middle - 15), 17, "white")
+            buttons = self._active_buttons()
+            for name, size in DIFFICULTIES.items():
+                self._button(buttons[name], f"{name}  {size} x {size}",
+                             primary=name == self.difficulty)
+            self._button(buttons["back"], "Back")
+            self._button(buttons["begin"], "Start puzzle", True)
+            return
         self.text("Harbor in Bloom", (48, middle - 74), 32, "white")
         self.text("Player name", (48, middle - 15), 17, "white")
         field = pygame.Rect(48, middle + 16, 360, 52)
@@ -279,7 +336,7 @@ class PuzzleApp:
             cursor = field.x + 14 + self.fonts[20].size(self.player_name)[0]
             pygame.draw.line(self.screen, ACCENT, (cursor, field.y + 12),
                              (cursor, field.bottom - 12), 2)
-        self._button(self._active_buttons()["start"], "Start puzzle", True,
+        self._button(self._active_buttons()["start"], "Continue", True,
                      disabled=not self.player_name.strip())
 
     def run(self) -> None:

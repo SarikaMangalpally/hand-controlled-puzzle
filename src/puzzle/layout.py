@@ -23,10 +23,10 @@ class Layout:
         board = pygame.Rect(36, 178, cell * size, cell * size)
         side_x = board.right + 38
         side_width = width - side_x - 36
-        reference_size = min(140, side_width)
+        reference_size = min(140 if size == 4 else 100, side_width)
         reference = pygame.Rect(side_x, 178, reference_size, reference_size)
         tray_top = reference.bottom + 52
-        gap = 10
+        gap = 10 if size == 4 else 6
         tile = min((side_width - gap * (size - 1)) // size,
                    (height - tray_top - 40 - gap * (size - 1)) // size)
         tray = pygame.Rect(side_x, tray_top, size * (tile + gap) - gap,

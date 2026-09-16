@@ -9,7 +9,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 
 from puzzle.app import PuzzleApp
-from puzzle.model import Location, Puzzle
+from puzzle.model import DIFFICULTIES, Location, Puzzle
 
 
 class AppTests(unittest.TestCase):
@@ -128,7 +128,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.app.player_name, "Alex")
         self.capture("player-entry")
         self.event(pygame.KEYDOWN, key=pygame.K_RETURN)
-        self.assertEqual(self.app.scene, "puzzle")
+        self.assertEqual(self.app.scene, "difficulty")
 
     def test_menu_requires_confirmation_and_preserves_player_name(self):
         self.drag(Location("tray", 0), Location("board", 0))
@@ -138,6 +138,36 @@ class AppTests(unittest.TestCase):
         self.app._activate("confirm")
         self.assertEqual(self.app.scene, "start")
         self.assertEqual(self.app.player_name, "Alex")
+
+    def test_all_difficulties_layout_and_complete_mouse_solve(self):
+        for name, size in DIFFICULTIES.items():
+            self.app.scene = "difficulty"
+            self.app._activate(name)
+            self.capture(f"difficulty-{name}")
+            self.app._activate("begin")
+            self.assertEqual(self.app.puzzle.size, size)
+            for window in ((1000, 720), (1280, 840), (1600, 1000)):
+                self.event(pygame.VIDEORESIZE, size=window)
+                bounds = self.app.screen.get_rect()
+                for rect in self.app.layout.board_cells + self.app.layout.tray_cells:
+                    self.assertTrue(bounds.contains(rect))
+                    self.assertGreaterEqual(rect.width, 30)
+                self.capture(f"{name}-{window[0]}")
+            for tile in range(size * size):
+                self.drag(Location("tray", self.app.puzzle.tray.index(tile)),
+                          Location("board", tile))
+            self.assertTrue(self.app.puzzle.solved)
+            self.capture(f"solved-{name}")
+
+    def test_reference_expansion_blocks_board_input_and_closes_on_escape(self):
+        self.app._activate("reference")
+        self.assertTrue(self.app.viewing_reference)
+        self.capture("reference")
+        self.event(pygame.MOUSEBUTTONDOWN, button=1,
+                   pos=self.app.layout.tray_cells[0].center)
+        self.assertFalse(self.app.puzzle.held)
+        self.event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
+        self.assertFalse(self.app.viewing_reference)
 
 
 if __name__ == "__main__":

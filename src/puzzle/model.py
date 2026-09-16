@@ -5,6 +5,9 @@ from random import Random
 from typing import Literal
 
 
+DIFFICULTIES = {"Easy": 4, "Medium": 6, "Expert": 9}
+
+
 @dataclass(frozen=True)
 class Location:
     area: Literal["board", "tray"]
