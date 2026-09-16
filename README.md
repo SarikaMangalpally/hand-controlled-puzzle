@@ -78,7 +78,8 @@ Tracking loss, ambiguous hand identity, large cursor jumps, focus loss, and
 resizing cancel held moves safely. Open the pinch again before grabbing after
 cancellation. Camera errors fall back to mouse controls. Initial smoothing and
 pinch hysteresis are implemented; real-world precision tuning, especially for
-32x32 grids, remains Phase 7. Live two-hand usability testing is still pending.
+32x32 grids, remains Phase 7. Live two-hand detection and pinch recognition were
+verified; full in-game hand-placement usability testing is still pending.
 The pinned MediaPipe 0.10.21 build passed local model inference; 1.0.1 crashed
 during model initialization on the development Mac and is not used.
 
@@ -106,7 +107,10 @@ saves no frames), run:
 PYTHONPATH=src .venv/bin/python tests/webcam_smoke.py
 ```
 
-The development Mac still needs OS camera authorization before live acceptance.
+The development Mac passed this check after camera permission was granted:
+167 frames, up to two hands, 9 pinch events, and 7 release events in 20 seconds.
+The camera worker shut down cleanly. This does not yet verify in-game placement
+accuracy or comfort on large grids.
 
 ## Development
 

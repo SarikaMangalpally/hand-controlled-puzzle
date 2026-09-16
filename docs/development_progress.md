@@ -9,7 +9,7 @@
 | 3 | Difficulty selection, 6x6 and 9x9 layouts | Complete; 23 tests passing |
 | 4 | Timer and valid-move tracking | Complete; 27 tests passing |
 | 5 | SQLite profiles/results, gallery/upload, custom 2-32 grids | Complete; 41 tests passing |
-| 6 | Webcam, two-hand tracking, thumb/index pinch | Implemented; 55 tests passing; macOS camera permission blocks live acceptance |
+| 6 | Webcam, two-hand tracking, thumb/index pinch | Implemented; 55 tests passing; live two-hand detection and pinch check passed |
 | 7 | Gesture smoothing, tracking-loss behavior, expert tuning | Pending |
 
 ## Phase 1 Design
@@ -46,7 +46,7 @@ The final build also passed native macOS Cocoa player-entry, navigation,
 rendering, running-timer, and clean-exit checks.
 
 Automated mouse events and native startup checks are not a substitute for a
-human usability test. Live two-hand gesture behavior still requires a camera
+human usability test. In-game hand-placement accuracy still requires a
 usability test.
 
 Phase 5 verification: 41 automated tests, including full mouse solves through
@@ -73,9 +73,13 @@ real model inference on a blank image passed, and pip check found no conflicts.
 The complete suite passes 55 tests. A native macOS game-window startup, rendering,
 and clean-shutdown check also passed. A user-authorized live camera attempt
 reached the macOS authorization check, but capture was not granted; the worker
-reported camera unavailable and shut down cleanly. Physical two-hand acceptance
-remains pending OS permission. These automated checks do not establish
-real-world hand-control accuracy. `tests/webcam_smoke.py` is a separate manual,
+reported camera unavailable and shut down cleanly. After the user granted OS
+permission, a 20-second retry processed 167 frames (about 8.4 FPS), detected up
+to two hands, and registered 9 pinch events and 7 release events. The camera
+worker stopped cleanly. The unmatched pinch count is not a complete gameplay
+validation: tracking cancellations or the test ending can interrupt gestures.
+Full in-game placement accuracy, tracking stability, and large-grid comfort
+remain Phase 7 acceptance checks. `tests/webcam_smoke.py` is a separate manual,
 opt-in check that reports counts and saves no frames.
 
 ## Open Decisions For Later Phases
