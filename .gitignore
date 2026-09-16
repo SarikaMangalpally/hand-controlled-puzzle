@@ -22,5 +22,6 @@ data/scores.json
 # OS and editor files
 .DS_Store
 .idea/
-.vscode/
-
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
