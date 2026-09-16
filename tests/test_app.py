@@ -16,6 +16,8 @@ class AppTests(unittest.TestCase):
     def setUp(self):
         self.app = PuzzleApp()
         self.app.puzzle = Puzzle(rng=Random(7))
+        self.app.scene = "puzzle"
+        self.app.player_name = "Alex"
 
     def tearDown(self):
         pygame.quit()
@@ -115,6 +117,27 @@ class AppTests(unittest.TestCase):
         pygame.event.post(pygame.event.Event(pygame.QUIT))
         self.app.run()
         self.assertFalse(self.app.running)
+
+    def test_player_entry_requires_name_and_supports_editing(self):
+        self.app._show_start()
+        self.app.player_name = ""
+        self.event(pygame.KEYDOWN, key=pygame.K_RETURN)
+        self.assertEqual(self.app.scene, "start")
+        self.event(pygame.TEXTINPUT, text="Alexx")
+        self.event(pygame.KEYDOWN, key=pygame.K_BACKSPACE)
+        self.assertEqual(self.app.player_name, "Alex")
+        self.capture("player-entry")
+        self.event(pygame.KEYDOWN, key=pygame.K_RETURN)
+        self.assertEqual(self.app.scene, "puzzle")
+
+    def test_menu_requires_confirmation_and_preserves_player_name(self):
+        self.drag(Location("tray", 0), Location("board", 0))
+        self.app._activate("menu")
+        self.assertTrue(self.app.confirm_restart)
+        self.assertEqual(self.app.scene, "puzzle")
+        self.app._activate("confirm")
+        self.assertEqual(self.app.scene, "start")
+        self.assertEqual(self.app.player_name, "Alex")
 
 
 if __name__ == "__main__":

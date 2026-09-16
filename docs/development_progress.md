@@ -5,7 +5,7 @@
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Empty 4x4 board, outside pieces, mouse placement, reference, progress | Complete; 19 tests passing |
-| 2 | Start screen, player name, completion flow, navigation | Pending |
+| 2 | Start screen, player name, completion flow, navigation | Complete; 21 tests passing |
 | 3 | Difficulty selection, 6x6 and 9x9 layouts | Pending |
 | 4 | Timer and valid-move tracking | Pending |
 | 5 | Saved scores, leaderboard, personal bests | Pending; JSON/SQLite decision open |
@@ -36,6 +36,10 @@ custom image selection, webcam preview visibility, optional one-finger gesture,
 and expert-mode magnification. Initial hand input will use thumb/index pinching.
 
 ## Git
+
+Phase 2 adds player entry, name validation/editing, menu confirmation, and
+completion navigation. Player-entry artwork and layout were visually inspected.
+Checkpoint branch: `feat/phase-2-screens`.
 
 Implementation branch: `feat/phase-1-puzzle`, based on `docs/project-instructions`.
 The documentation branches are not merged into `master`. No merge or push is
