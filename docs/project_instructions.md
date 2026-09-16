@@ -46,7 +46,9 @@ Do not jump straight into webcam gesture control before the mouse-controlled puz
 - Reject invalid drops by restoring the piece. If another hand has filled its origin, return it to an empty tray slot.
 - Display completion as correctly placed pieces divided by total pieces, multiplied by 100. Update the progress bar after changes, including removal of correct pieces.
 - Count each valid player action as one move.
+- A move is a successful drop into a different empty cell or tray slot. Pickup, cancellation, rejected drops, and returning to the same slot do not count.
 - Track elapsed solve time for each attempt.
+- Start timing when the puzzle begins and freeze it on completion. Reference viewing, lost focus, and confirmation dialogs do not pause an active attempt.
 - Detect when the puzzle is solved.
 - Show a completion screen with time, moves, and ranking context.
 - Save completed attempts locally.

@@ -46,6 +46,7 @@ class AppTests(unittest.TestCase):
             self.drag(Location("tray", self.app.puzzle.tray.index(tile)),
                       Location("board", tile))
             self.assertEqual(self.app.puzzle.correct_count, tile + 1)
+            self.assertEqual(self.app.puzzle.moves, tile + 1)
             if tile == 7:
                 self.capture("half-complete")
         self.capture("complete")
@@ -55,6 +56,7 @@ class AppTests(unittest.TestCase):
         self.event(pygame.MOUSEBUTTONUP, button=1, pos=position)
         self.assertEqual(self.app.puzzle.correct_count, 0)
         self.assertFalse(self.app.puzzle.held)
+        self.assertEqual(self.app.puzzle.moves, 0)
 
     def test_focus_loss_escape_and_resize_cancel_drag(self):
         for kind, values in ((pygame.WINDOWFOCUSLOST, {}),

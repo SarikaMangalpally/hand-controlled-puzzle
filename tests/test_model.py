@@ -2,6 +2,7 @@ import unittest
 from random import Random
 
 from puzzle.model import Location, Puzzle
+from puzzle.formatting import format_duration
 
 
 class PuzzleTests(unittest.TestCase):
@@ -119,6 +120,54 @@ class PuzzleTests(unittest.TestCase):
             self.puzzle.pick_up("mouse", Location("board", -1))
         with self.assertRaises(ValueError):
             Puzzle(1)
+
+    def test_moves_count_only_successful_relocations_including_removal(self):
+        origin = Location("tray", 0)
+        self.puzzle.pick_up("mouse", origin)
+        self.assertEqual(self.puzzle.moves, 0)
+        self.puzzle.drop("mouse", origin)
+        self.assertEqual(self.puzzle.moves, 0)
+        self.puzzle.pick_up("mouse", origin)
+        self.puzzle.drop("mouse", None)
+        self.assertEqual(self.puzzle.moves, 0)
+        self.puzzle.pick_up("mouse", origin)
+        self.puzzle.drop("mouse", Location("board", 0))
+        self.assertEqual(self.puzzle.moves, 1)
+        self.puzzle.pick_up("mouse", Location("tray", 1))
+        self.puzzle.drop("mouse", Location("board", 0))
+        self.assertEqual(self.puzzle.moves, 1)
+        self.puzzle.pick_up("mouse", Location("board", 0))
+        self.puzzle.drop("mouse", origin)
+        self.assertEqual(self.puzzle.moves, 2)
+
+    def test_elapsed_time_runs_until_completion_then_freezes(self):
+        now = [100.0]
+        self.puzzle = Puzzle(clock=lambda: now[0])
+        self.assertEqual(self.puzzle.elapsed_seconds, 0)
+        now[0] = 106.25
+        self.assertEqual(self.puzzle.elapsed_seconds, 6.25)
+        for tile in range(16):
+            self.place(tile, tile)
+        now[0] = 200.0
+        self.assertEqual(self.puzzle.elapsed_seconds, 6.25)
+        self.assertEqual(self.puzzle.moves, 16)
+        self.assertFalse(self.puzzle.pick_up("mouse", Location("board", 0)))
+
+    def test_timer_continues_after_cancel_and_new_puzzle_resets_stats(self):
+        now = [100.0]
+        puzzle = Puzzle(clock=lambda: now[0])
+        puzzle.pick_up("mouse", Location("tray", 0))
+        now[0] = 125.0
+        puzzle.cancel_all()
+        self.assertEqual(puzzle.elapsed_seconds, 25)
+        new_puzzle = Puzzle(clock=lambda: now[0])
+        self.assertEqual(new_puzzle.elapsed_seconds, 0)
+        self.assertEqual(new_puzzle.moves, 0)
+
+    def test_duration_formats_minute_and_hour_boundaries(self):
+        self.assertEqual(format_duration(59.9), "00:59")
+        self.assertEqual(format_duration(60), "01:00")
+        self.assertEqual(format_duration(3661), "1:01:01")
 
 
 if __name__ == "__main__":

@@ -72,6 +72,7 @@ Expert mode is intentionally challenging and will require extra attention to UI 
 - Completion is the number of pieces in their exact final grid positions divided by the total number of pieces. Show this as a progress bar and percentage. Removing a correct piece reduces progress.
 - Compare tile identity and position, not approximate visual similarity or filled-cell count.
 - Each valid player action should count as one move.
+- A successful relocation into a different empty grid cell or tray slot counts once. Pickup, cancellation, rejected drops, and returning to the same slot do not count.
 - The app should detect when the puzzle is solved.
 - A completion screen should appear after the puzzle is solved.
 
@@ -207,6 +208,7 @@ Recommended ranking order:
 ### Phase 4: Timer and Move Tracking
 
 - Start timer when puzzle begins.
+- Keep timing through reference viewing, lost focus, and confirmation dialogs. Freeze elapsed time on completion and reset it for a new attempt.
 - Count each valid move.
 - Display live timer and move counter.
 - Show final time and moves after completion.

@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass
 from random import Random
-from typing import Literal
+from time import monotonic
+from typing import Callable, Literal
 
 
 DIFFICULTIES = {"Easy": 4, "Medium": 6, "Expert": 9}
@@ -21,7 +22,8 @@ class HeldPiece:
 
 
 class Puzzle:
-    def __init__(self, size: int = 4, rng: Random | None = None):
+    def __init__(self, size: int = 4, rng: Random | None = None,
+                 clock: Callable[[], float] = monotonic):
         if size < 2:
             raise ValueError("Puzzle size must be at least 2.")
         self.size = size
@@ -29,6 +31,15 @@ class Puzzle:
         self.tray: list[int | None] = list(range(size * size))
         (rng or Random()).shuffle(self.tray)
         self.held: dict[str, HeldPiece] = {}
+        self.moves = 0
+        self._clock = clock
+        self._started_at = clock()
+        self._finished_at: float | None = None
+
+    @property
+    def elapsed_seconds(self) -> float:
+        end = self._finished_at if self._finished_at is not None else self._clock()
+        return max(0, end - self._started_at)
 
     @property
     def correct_count(self) -> int:
@@ -54,7 +65,7 @@ class Puzzle:
         return self._slots(location)[location.index]
 
     def pick_up(self, pointer: str, location: Location) -> bool:
-        if pointer in self.held:
+        if pointer in self.held or self.solved:
             return False
         slots = self._slots(location)
         tile = slots[location.index]
@@ -73,7 +84,12 @@ class Puzzle:
             return False
         held = self.held.pop(pointer)
         self._slots(destination)[destination.index] = held.tile
-        return destination != held.origin
+        moved = destination != held.origin
+        if moved:
+            self.moves += 1
+        if self.solved:
+            self._finished_at = self._clock()
+        return moved
 
     def cancel(self, pointer: str) -> None:
         held = self.held.pop(pointer, None)

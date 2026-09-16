@@ -1,9 +1,10 @@
-"""Pygame presentation and mouse input for the first playable phase."""
+"""Pygame screens, rendering, and mouse input."""
 
 from pathlib import Path
 
 import pygame
 
+from .formatting import format_duration
 from .layout import Layout
 from .model import DIFFICULTIES, Location, Puzzle
 
@@ -76,6 +77,14 @@ class PuzzleApp:
              color: str = INK) -> None:
         self.screen.blit(self.fonts[size].render(value, True, color), position)
 
+    def _shade(self, color: tuple[int, int, int, int]) -> None:
+        overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        overlay.fill(color)
+        self.screen.blit(overlay, (0, 0))
+
+    def _score_text(self) -> str:
+        return f"{format_duration(self.puzzle.elapsed_seconds)}  /  {self.puzzle.moves} moves"
+
     def _button(self, rect: pygame.Rect, label: str, primary: bool = False,
                 disabled: bool = False) -> None:
         hover = rect.collidepoint(self.pointer)
@@ -83,6 +92,9 @@ class PuzzleApp:
             "#e0e7eb" if hover else "#ffffff")
         if disabled:
             fill = "#dce4e8"
+        elif hover and self.pressed_button:
+            if self._active_buttons().get(self.pressed_button) == rect:
+                fill = "#075344" if primary else "#cbd7de"
         pygame.draw.rect(self.screen, fill, rect, border_radius=6)
         if not primary:
             pygame.draw.rect(self.screen, "#bac6cb", rect, 1, border_radius=6)
@@ -231,10 +243,13 @@ class PuzzleApp:
                   (36, 72), 17, MUTED)
         self._button(self.layout.restart, "New puzzle")
         self._button(self._menu_rect(), "Menu")
+        score = self._score_text()
+        score_width = self.fonts[17].size(score)[0]
+        self.text(score, (self.screen.get_width() - 36 - score_width, 78), 17, MUTED)
         percent = self.puzzle.progress * 100
         self.text(f"{self.puzzle.correct_count} / {len(self.puzzle.board)} correct",
                   (36, 99), 14, MUTED)
-        percent_surface = self.fonts[14].render(f"{percent:.0f}% complete", True, ACCENT)
+        percent_surface = self.fonts[14].render(f"{percent:.1f}% complete", True, ACCENT)
         self.screen.blit(percent_surface,
                          (self.layout.progress.right - percent_surface.get_width(), 99))
         pygame.draw.rect(self.screen, "#dce4e8", self.layout.progress, border_radius=4)
@@ -280,9 +295,7 @@ class PuzzleApp:
             self._draw_reference()
 
     def _draw_modal(self) -> None:
-        overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
-        overlay.fill((25, 34, 39, 145))
-        self.screen.blit(overlay, (0, 0))
+        self._shade((25, 34, 39, 145))
         width, height = self.screen.get_size()
         rect = pygame.Rect(width // 2 - 218, height // 2 - 122, 436, 244)
         pygame.draw.rect(self.screen, "white", rect, border_radius=8)
@@ -293,15 +306,15 @@ class PuzzleApp:
         self.text(f"100%  /  All {len(self.puzzle.board)} pieces in place" if solved
                   else "Current progress will be cleared.",
                   (rect.x + 32, rect.y + 82), 17, MUTED)
+        if solved:
+            self.text(self._score_text(), (rect.x + 32, rect.y + 113), 20, ACCENT)
         buttons = self._modal_buttons()
         self._button(buttons["cancel"], "Menu" if solved else "Keep playing")
         label = "New puzzle" if self.pending_action == "restart" else "Return to menu"
         self._button(buttons["restart"], "Play again" if solved else label, True)
 
     def _draw_reference(self) -> None:
-        shade = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
-        shade.fill((10, 22, 27, 220))
-        self.screen.blit(shade, (0, 0))
+        self._shade((10, 22, 27, 220))
         rect = self.large_reference.get_rect(center=self.screen.get_rect().center)
         self.screen.blit(self.large_reference, rect)
         self.text("Harbor in Bloom", (rect.x, rect.y - 30), 20, "white")
@@ -311,9 +324,7 @@ class PuzzleApp:
 
     def _draw_setup(self) -> None:
         self.screen.blit(self.cover, self.cover.get_rect(center=self.screen.get_rect().center))
-        shade = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
-        shade.fill((10, 22, 27, 165))
-        self.screen.blit(shade, (0, 0))
+        self._shade((10, 22, 27, 165))
         middle = self.screen.get_height() // 2
         self.text("HAND-CONTROLLED PUZZLE", (48, middle - 112), 17, "#dce4e8")
         if self.scene == "difficulty":
