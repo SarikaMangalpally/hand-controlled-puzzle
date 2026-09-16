@@ -19,12 +19,17 @@ Build a polished Python computer vision puzzle game where players solve a jumble
 
 Build incrementally in this order:
 
-1. Create a Pygame puzzle with normal mouse controls.
-2. Add difficulty selection.
-3. Add timer and move tracking.
-4. Add player profiles and leaderboard.
-5. Add MediaPipe hand control.
-6. Polish gestures and tune expert mode.
+1. Create a mouse-controlled 4x4 puzzle with an empty board, shuffled outside tray, reference image, and live completion progress.
+2. Add polished screens, player name input, completion flow, and navigation.
+3. Add difficulty selection and 4x4, 6x6, and 9x9 layouts.
+4. Add timer and move tracking.
+5. Add player profiles, local scores, and leaderboard.
+6. Add MediaPipe hand control, including two independent hands.
+7. Polish gestures and tune expert mode.
+
+Use the detailed phases in the PRD as the implementation sequence. Keep progress and verification evidence in [development_progress.md](development_progress.md).
+
+Keep code DRY and simple to read. Share placement rules between input modes, but avoid unnecessary abstractions. Pause and ask the user before implementing unclear or conflicting requirements. Request permissions when an operation needs access beyond the environment's grants.
 
 Do not jump straight into webcam gesture control before the mouse-controlled puzzle, scoring, and screen flow are stable.
 
@@ -34,8 +39,12 @@ Do not jump straight into webcam gesture control before the mouse-controlled puz
 - Let the player choose a difficulty.
 - Load a source image and fit it to the puzzle board.
 - Split the image into equal grid tiles.
-- Shuffle tiles into a playable puzzle state.
-- Let the player select and move or swap tiles.
+- Start with an empty grid and all image pieces shuffled in a tray outside it.
+- Drag pieces from the outside tray into empty grid cells, between empty grid cells, or back into empty tray slots.
+- Allow incorrect placements to remain; players can rearrange them later.
+- An occupied destination must be freed first. Do not automatically swap or overwrite pieces.
+- Reject invalid drops by restoring the piece. If another hand has filled its origin, return it to an empty tray slot.
+- Display completion as correctly placed pieces divided by total pieces, multiplied by 100. Update the progress bar after changes, including removal of correct pieces.
 - Count each valid player action as one move.
 - Track elapsed solve time for each attempt.
 - Detect when the puzzle is solved.
@@ -63,6 +72,8 @@ The final hand-control mode should:
 - Detect hand landmarks with MediaPipe.
 - Derive an on-screen cursor from finger or hand position.
 - Use a pinch gesture to select or grab a tile.
+- Use thumb-and-index pinching as the initial gesture; a one-finger alternative is a later option requiring a defined grab/release gesture.
+- Support two independently tracked hands holding different pieces. Picking up a piece frees its cell immediately so the other hand can place a replacement there.
 - Move the selected tile with hand movement.
 - Release the pinch to drop or place the tile.
 - Smooth cursor and gesture movement to reduce jitter.
@@ -134,9 +145,8 @@ Use `docs/` for project documentation, `src/` for game code, `assets/` for image
 
 Resolve these during implementation:
 
-- Whether pieces should swap positions or slide into an empty space.
 - Whether the game should support custom image upload.
 - Whether webcam preview should always be visible.
 - Whether scores should use JSON or SQLite.
 - Whether expert mode needs zoom or magnified tile selection.
-
+- The exact activation and release gesture for any optional one-finger control mode.

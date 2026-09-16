@@ -1,6 +1,6 @@
 # Product Requirements Document: Hand-Controlled Puzzle Game
 
-Project-local living PRD for the Python computer vision puzzle game. Future requirements and scope changes should be recorded here so all project documents stay inside the `Solve puzzle - CV` project folder.
+Project-local living PRD for the Python computer vision puzzle game. Record requirements and scope changes here, inside the `hand-controlled-puzzle` project folder.
 
 ## 1. Product Overview
 
@@ -26,7 +26,7 @@ The target users are players, students, and demo viewers who want to experience 
 
 ## 4. Core Experience
 
-The player opens the app, enters their name, chooses a difficulty level, and starts a puzzle. The app shows a jumbled picture divided into grid pieces. The player solves the puzzle by moving pieces into the correct order.
+The player opens the app, enters their name, chooses a difficulty level, and starts a puzzle. The app shows an empty grid, a reference image, and shuffled image pieces in an outside tray. The player searches for pieces and drags them into the grid. Incorrect placements stay until the player rearranges them. A live progress bar measures correct placement against the final image.
 
 In the early version, the player can use the mouse. In the final version, the player uses webcam-based hand gestures.
 
@@ -58,13 +58,19 @@ Expert mode is intentionally challenging and will require extra attention to UI 
 - The app should load a source image.
 - The image should be resized or cropped to fit the puzzle board.
 - The image should be divided into equal grid tiles based on selected difficulty.
-- The puzzle should be shuffled before play begins.
-- The shuffle should produce a playable puzzle state.
+- The grid starts empty, with all pieces shuffled into the outside tray.
+- Every piece appears exactly once across the board, tray, and pieces currently held.
 
 ### 7.2 Puzzle Interaction
 
 - The player should be able to select a tile.
-- The player should be able to move or swap tiles depending on the chosen puzzle mechanic.
+- Drag pieces from the tray into empty cells, between empty cells, or out of the grid into empty tray slots.
+- Incorrect placements are allowed and remain until moved.
+- Occupied cells must be freed before another piece can be placed. Never swap or overwrite automatically.
+- Picking up a piece immediately frees its cell, including during two-hand interaction.
+- Invalid drops restore the piece to its origin, or to an empty tray slot if another hand has since filled that origin.
+- Completion is the number of pieces in their exact final grid positions divided by the total number of pieces. Show this as a progress bar and percentage. Removing a correct piece reduces progress.
+- Compare tile identity and position, not approximate visual similarity or filled-cell count.
 - Each valid player action should count as one move.
 - The app should detect when the puzzle is solved.
 - A completion screen should appear after the puzzle is solved.
@@ -81,9 +87,11 @@ The final version should use webcam-based hand control:
 - MediaPipe detects hand landmarks.
 - A cursor position is derived from the hand or finger position.
 - A pinch gesture selects or grabs a tile.
+- Initially use the thumb and index finger to pinch. Track both hands independently so one can remove a piece while the other places a replacement.
 - Moving the hand moves the selected tile.
 - Releasing the pinch drops or places the tile.
 - Gesture smoothing should reduce jitter.
+- A one-finger mode is optional; its grab/release gesture must be clarified before implementation.
 
 ## 8. Scoring Requirements
 
@@ -175,16 +183,17 @@ Recommended ranking order:
 
 - Create Pygame window.
 - Load and split one image.
-- Build 4x4 puzzle board.
-- Shuffle tiles.
-- Allow mouse-based tile movement.
+- Build an empty 4x4 puzzle board and a shuffled outside tray.
+- Allow mouse drag-and-drop placement, repositioning, and removal; permit incorrect placements.
+- Show the reference image and live completion progress.
+- Preserve every piece on rejected drops, focus loss, and window resizing.
 - Detect solved state.
 
 ### Phase 2: Polished Game Screens
 
 - Add start screen.
 - Add player name input.
-- Add difficulty selection.
+- Prepare navigation for difficulty selection in Phase 3.
 - Add completion screen.
 - Add basic navigation between screens.
 
@@ -217,6 +226,7 @@ Recommended ranking order:
 - Detect pinch gesture.
 - Map hand position to game coordinates.
 - Control puzzle selection and movement with gestures.
+- Support two independently held pieces and replacement of a cell freed by the other hand.
 
 ### Phase 7: Gesture Polish and Expert Mode
 
@@ -243,11 +253,11 @@ The project is successful when:
 
 These decisions can be finalized while building:
 
-- Whether puzzle pieces should swap positions or slide into empty space.
 - Whether the game should include custom image upload.
 - Whether the webcam preview should always be visible.
 - Whether leaderboard data should use JSON or SQLite.
 - Whether expert mode should include extra zoom or magnified tile selection.
+- The exact gesture for optional one-finger grab/release controls.
 
 ## 15. Living Change Log
 
@@ -257,3 +267,5 @@ Use this section to keep the PRD updated whenever the project requirements chang
 |---|---|---|
 | 2026-09-15 | Initial PRD created. | Captures the first agreed product scope before implementation begins. |
 | 2026-09-16 | Moved PRD into the local `Solve puzzle - CV` project under `docs/`. | Keeps project planning documents inside the project folder as requested. |
+| 2026-09-16 | Clarified empty grid, shuffled outside pieces, incorrect placements, removal/replacement, progress percentage, and two-hand pinch interaction. | User-confirmed gameplay rules; replaces swap/slide ambiguity. |
+| 2026-09-16 | Adopted the seven-phase sequence and corrected the project folder name. | Keeps instructions and implementation milestones consistent. |
