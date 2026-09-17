@@ -129,6 +129,25 @@ completed successfully. The count does not distinguish mouse from hand moves;
 user confirmation of gesture accuracy is still pending. `tests/live_controls.py`
 provides this explicit opt-in test without recording camera frames.
 
+## Two-Hand Practice Follow-Up
+
+The user requested longer practice and simultaneous board-piece replacement.
+Inspection found that per-hand event order could reject a same-frame drop if
+the replacement hand was processed before the hand freeing that cell. Input
+now applies cancellations, movement, pickups, then drops across both hands.
+Scene-generation guards still stop events after a modal/navigation transition.
+
+The suite passes 73 tests. A new camera-frame integration test exercises both
+hand detection orders and moves the lifted piece either to another board cell
+or back to the tray, checking all piece identities and move counts. Practice
+duration is configurable with `--seconds` (10-1800 seconds, default 30).
+
+The user authorized a three-minute live practice run. It finished with 18 moves,
+2 correct pieces, no held pieces, and two hands detected at exit. Camera shutdown
+and temporary-profile removal completed normally. This summary does not identify
+which moves used hand versus mouse input or independently prove simultaneous
+replacement; user feedback on smoothness and the two-hand workflow is pending.
+
 ## Remaining Decisions
 
 SQLite, local profiles without passwords, uploaded/built-in pictures, and custom
@@ -147,6 +166,7 @@ Each phase has its own checkpoint branch, stacked from the preceding phase:
 - `feat/phase-5-profiles-gallery`.
 - `feat/phase-6-hand-tracking`.
 - `feat/phase-7-gesture-polish`, containing the current precision checkpoint.
+- `feat/two-hand-practice`, containing the same-frame replacement fix and longer practice.
 
 Changes are not merged into `master`. No remote is configured. Merging follows
 approval; pushing also requires a configured remote.

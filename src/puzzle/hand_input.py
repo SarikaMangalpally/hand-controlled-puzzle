@@ -83,7 +83,10 @@ class HandInput:
         self.status = f'{count} hand{"s" if count != 1 else ""} detected'
         generation = self.generation
         width, height = self.app.screen.get_size()
-        for event in self.gestures.update(frame.hands, frame.timestamp):
+        events = self.gestures.update(frame.hands, frame.timestamp)
+        # Free both pickup cells before any same-frame drop, independent of detection order.
+        order = {'cancel': 0, 'move': 1, 'down': 2, 'up': 3}
+        for event in sorted(events, key=lambda event: order[event.phase]):
             if generation != self.generation:
                 break
             position = (round(event.position[0] * (width - 1)),

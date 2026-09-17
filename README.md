@@ -131,6 +131,19 @@ To practice with visible markers in a disposable 4x4 puzzle for 30 seconds:
 PYTHONPATH=src .venv/bin/python tests/live_controls.py
 ```
 
+For three minutes of two-hand practice:
+
+```sh
+PYTHONPATH=src .venv/bin/python tests/live_controls.py --seconds 180
+```
+
+Lift a board piece with one hand to free its cell immediately. While keeping
+that pinch closed, use the other hand to place a replacement into the free cell.
+The first hand can place its piece into another empty board cell or empty tray
+slot. Pickups are processed before drops within the same camera frame, so hand
+detection order cannot reject this replacement. Releasing outside valid slots
+cancels the move; it does not create a free-floating piece.
+
 This explicitly opens the webcam, saves no footage, and removes the temporary
 profile afterward. Use the normal game launcher for an unrestricted session.
 

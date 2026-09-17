@@ -463,6 +463,63 @@ class AppTests(unittest.TestCase):
         self.assertIsNone(app.hands.preview)
         self.assertFalse(app.hands.positions)
 
+    def test_same_frame_two_hand_replacement_in_either_detection_order(self):
+        app = self.app
+        session = Mock()
+        app.hands.session = session
+        app.hands.started = 100
+        for reverse in (False, True):
+            for destination in (Location('board', 1), Location('tray', 0)):
+                app.grid_size = 4
+                app._new_puzzle()
+                app.puzzle.pick_up('mouse', Location('tray', 0))
+                app.puzzle.drop('mouse', Location('board', 0))
+                original, replacement = app.puzzle.board[0], app.puzzle.tray[1]
+                source = app.layout.board_cells[0].center
+                tray = app.layout.tray_cells[1].center
+                target = app.layout.rect_for(destination).center
+                width, height = app.screen.get_size()
+                now = 100
+
+                def frame(left, right, left_ratio=.8, right_ratio=.1):
+                    nonlocal now
+                    now += .125
+                    hands = []
+                    for identity, pos, ratio in (('Left', left, left_ratio), ('Right', right, right_ratio)):
+                        x, y = .08 + .84 * pos[0] / (width - 1), .10 + .80 * pos[1] / (height - 1)
+                        points = [(x, y)] * 21
+                        points[4] = (x - (.01 if ratio < .6 else .1), y)
+                        hands.append(Hand(identity, x, y, ratio, tuple(points)))
+                    if reverse:
+                        hands.reverse()
+                    session.poll.return_value = CameraFrame(now, tuple(hands))
+                    with patch('puzzle.hand_input.monotonic', return_value=now):
+                        app.hands.update()
+
+                frame(source, tray, right_ratio=.8)
+                frame(source, tray)
+                self.assertIn('Right', app.puzzle.held)
+                for step in range(1, 17):
+                    pos = tuple(a + (b - a) * step / 16 for a, b in zip(tray, source))
+                    frame(source, pos)
+                for _ in range(8):
+                    frame(source, source)
+                # The right hand releases into the cell the left picks up in this frame.
+                frame(source, source, left_ratio=.1, right_ratio=.8)
+                self.assertEqual(app.puzzle.board[0], replacement)
+                self.assertEqual(app.puzzle.held['Left'].tile, original)
+                self.assertNotIn('Right', app.puzzle.held)
+                for step in range(1, 17):
+                    pos = tuple(a + (b - a) * step / 16 for a, b in zip(source, target))
+                    frame(pos, source, left_ratio=.1, right_ratio=.8)
+                for _ in range(8):
+                    frame(target, source, left_ratio=.1, right_ratio=.8)
+                frame(target, source, right_ratio=.8)
+                self.assertEqual(app.puzzle.tile_at(destination), original)
+                self.assertFalse(app.puzzle.held)
+                self.assertEqual(app.puzzle.moves, 3)
+                self.assertEqual(sorted(v for v in app.puzzle.board + app.puzzle.tray if v is not None), list(range(16)))
+
 
 if __name__ == "__main__":
     unittest.main()
