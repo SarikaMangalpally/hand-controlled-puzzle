@@ -95,6 +95,11 @@ resizing cancel held moves safely. Open the pinch again before grabbing after
 cancellation. Camera errors fall back to mouse controls. Adaptive smoothing
 steadies slow aiming and follows faster drags more closely. Pinch hysteresis
 keeps the grab and release thresholds separate.
+Render-rate easing now also moves cursors and held pieces between camera results,
+with a short 25 ms response constant and no prediction past the observed target.
+Pickup/release use the visible cursor position rather than an incoming target
+the player has not yet seen. This does not increase camera inference FPS or
+eliminate long camera stalls.
 
 For grids above 9x9, each hand over the board has a nearby 3x3-cell magnifier.
 Its center outlines the target cell and previews a held piece over an empty
@@ -172,6 +177,7 @@ Read [project instructions](docs/project_instructions.md), the
 - `src/puzzle/hand_input.py`: camera lifecycle and gesture-to-game integration.
 - `src/puzzle/precision.py`: non-interactive, collision-aware hand magnifiers.
 - `src/puzzle/landmarks.py`: camera-preview joint markers and active-pinch feedback.
+- `src/puzzle/motion.py`: time-based cursor easing between camera updates.
 - `src/puzzle/menus.py`: profile, gallery/setup, and leaderboard screens.
 - `src/puzzle/storage.py`: SQLite profiles, attempts, rankings, and personal bests.
 - `src/puzzle/gallery.py`: image import, local copies, and gallery discovery.

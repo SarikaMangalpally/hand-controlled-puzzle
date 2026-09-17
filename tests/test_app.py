@@ -15,7 +15,7 @@ import pygame
 from puzzle.app import PuzzleApp
 from puzzle.model import Location, Puzzle
 from puzzle.camera import CameraFrame
-from puzzle.gestures import Hand
+from puzzle.gestures import Hand, HandState, PointerEvent
 
 
 class AppTests(unittest.TestCase):
@@ -549,6 +549,50 @@ class AppTests(unittest.TestCase):
             app.draw()
             self.assertNotIn('Left', app.puzzle.held)
             self.assertEqual(app.puzzle.board[2], tile)
+
+    def test_render_motion_continues_between_frames_and_stops_on_stale_tracking(self):
+        app = self.app
+        app.hands.session = Mock()
+        app.hands.session.poll.return_value = None
+        app.hands.started = app.hands.last_frame = 100
+        app.hands.motion.advance(100)
+        app.hands.motion.target('Left', (100, 300))
+        app.hands.motion.target('Left', (200, 300))
+        app.hands.gestures.states['Left'] = HandState((.2, .3), 100, (.2, .3))
+        app.puzzle.pick_up('Left', Location('tray', 0))
+        positions = []
+        for now in (100.016, 100.032, 100.048):
+            with patch('puzzle.hand_input.monotonic', return_value=now):
+                app.hands.update()
+            positions.append(app.hands.positions['Left'][0])
+        self.assertTrue(100 < positions[0] < positions[1] < positions[2] < 200)
+        with patch('puzzle.hand_input.monotonic', return_value=101):
+            app.hands.update()
+        self.assertFalse(app.hands.positions)
+        self.assertFalse(app.hands.motion.targets)
+        self.assertFalse(app.puzzle.held)
+
+    def test_release_uses_visible_cursor_not_newer_camera_target(self):
+        app = self.app
+        app.hands.session = Mock()
+        app.hands.session.poll.return_value = CameraFrame(100)
+        app.hands.started = 100
+        visible = app.layout.board_cells[0].center
+        target = app.layout.board_cells[1].center
+        width, height = app.screen.get_size()
+        normalized = (target[0] / (width - 1), target[1] / (height - 1))
+        app.hands.motion.advance(100)
+        app.hands.motion.target('Left', visible)
+        app.hands.gestures.states['Left'] = HandState(normalized, 100, normalized)
+        tile = app.puzzle.tray[0]
+        app.puzzle.pick_up('Left', Location('tray', 0))
+        events = [PointerEvent('Left', 'move', normalized), PointerEvent('Left', 'up', normalized)]
+        with patch.object(app.hands.gestures, 'update', return_value=events), \
+                patch('puzzle.hand_input.monotonic', return_value=100):
+            app.hands.update()
+        self.assertEqual(app.puzzle.board[0], tile)
+        self.assertIsNone(app.puzzle.board[1])
+        self.assertEqual(app.hands.positions['Left'], visible)
 
 
 if __name__ == "__main__":

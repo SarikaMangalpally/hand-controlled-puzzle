@@ -174,6 +174,22 @@ The camera stopped and temporary profile was removed. User confirmation of
 physical labels and visible held images remains pending; aggregate move counts
 cannot verify either issue independently.
 
+## Smoother Motion Follow-Up
+
+The user confirmed that hand labels and held visibility were much better, then
+requested smoother movement. The next update adds render-rate cursor easing
+between camera results (25 ms response constant), without extrapolation.
+Pickup/release use the visible cursor and reconcile gesture anchors to avoid
+changing the destination to a not-yet-visible camera target. Both hands ease
+independently; tracking loss, focus changes, and navigation clear motion state.
+
+The complete suite passes 80 tests, including frame-rate independence, monotonic
+motion without overshoot, visible-position release, animation between camera
+results, stale cancellation, and existing two-hand replacement tests. Physical
+smoothness acceptance remains pending. No new webcam run was made for this
+update without the user's permission. This is visual pacing, not an inference
+FPS improvement; previously observed long camera stalls remain a separate issue.
+
 ## Remaining Decisions
 
 SQLite, local profiles without passwords, uploaded/built-in pictures, and custom
@@ -194,6 +210,7 @@ Each phase has its own checkpoint branch, stacked from the preceding phase:
 - `feat/phase-7-gesture-polish`, containing the current precision checkpoint.
 - `feat/two-hand-practice`, containing the same-frame replacement fix and longer practice.
 - `fix/hand-labels-held-visibility`, containing the current visual/label fixes.
+- `feat/smoother-hand-motion`, containing render-rate motion easing.
 
 Changes are not merged into `master`. No remote is configured. Merging follows
 approval; pushing also requires a configured remote.

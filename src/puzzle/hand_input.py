@@ -7,6 +7,7 @@ import pygame
 from .camera import MAX_FRAME_AGE, CameraSession
 from .gestures import Gestures
 from .landmarks import draw_landmarks
+from .motion import CursorMotion
 
 
 class HandInput:
@@ -16,6 +17,7 @@ class HandInput:
         self.session = None
         self.gestures = Gestures()
         self.positions = {}
+        self.motion = CursorMotion()
         self.preview = None
         self.show_preview = True
         self.focused = True
@@ -27,6 +29,7 @@ class HandInput:
         for event in self.gestures.reset():
             self.app.cancel_pointer(event.identity)
         self.positions.clear()
+        self.motion.clear()
         self.generation += 1
 
     def start(self):
@@ -54,6 +57,7 @@ class HandInput:
         if self.session is None:
             return
         now = monotonic()
+        self.positions = self.motion.advance(now)
         frame = self.session.poll()
         if frame is not None and frame.error:
             self.stop()
@@ -94,12 +98,26 @@ class HandInput:
             if event.phase == 'cancel':
                 self.app.cancel_pointer(event.identity)
                 self.positions.pop(event.identity, None)
+                self.motion.remove(event.identity)
             else:
-                self.positions[event.identity] = position
-                if event.phase == 'down':
-                    self.app.pointer_down(event.identity, position)
-                elif event.phase == 'up':
-                    self.app.pointer_up(event.identity, position)
+                if event.phase == 'move':
+                    self.motion.target(event.identity, position)
+                    self.positions.setdefault(event.identity, position)
+                else:
+                    # Actions use the visible cursor, not a newer, not-yet-rendered target.
+                    position = self.positions[event.identity]
+                    self.motion.hold(event.identity)
+                    state = self.gestures.states[event.identity]
+                    normalized = (position[0] / (width - 1), position[1] / (height - 1))
+                    if event.phase == 'down':
+                        state.drag_offset = tuple(offset + visible - filtered
+                                                  for offset, visible, filtered in
+                                                  zip(state.drag_offset, normalized, state.position))
+                    state.position = state.raw_position = normalized
+                    if event.phase == 'down':
+                        self.app.pointer_down(event.identity, position)
+                    elif event.phase == 'up':
+                        self.app.pointer_up(event.identity, position)
         if self.preview is not None:
             draw_landmarks(self.preview, frame.hands, self.gestures.states)
 
