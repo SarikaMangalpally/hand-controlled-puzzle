@@ -352,6 +352,117 @@ class AppTests(unittest.TestCase):
             self.app.hands.update()
             factory.assert_not_called()
 
+    def test_hand_drag_into_small_cells_at_low_and_high_frame_rates(self):
+        app = self.app
+        session = Mock()
+        session.poll.return_value = None
+        app.hands.session = session
+        app.hands.started = 100
+        for fps in (8, 30):
+            for grid in (2, 32):
+                app.grid_size = grid
+                app._new_puzzle()
+                app._resize((1000, 720))
+                slot = app.puzzle.tray.index(0)
+                app.set_tray_page(slot // 16)
+                origin = app.layout.rect_for(Location('tray', slot)).center
+                target = app.layout.board_cells[0].center
+                now = 100
+
+                def frame(position, ratio):
+                    nonlocal now
+                    now += 1 / fps
+                    x, y = position
+                    hx, hy = .08 + .84 * x / 999, .10 + .80 * y / 719
+                    points = [(hx, hy)] * 21
+                    points[4] = (hx - (.01 if ratio < .6 else .1), hy)
+                    hand = Hand('Left', hx, hy, ratio, tuple(points))
+                    session.poll.return_value = CameraFrame(now, (hand,))
+                    with patch('puzzle.hand_input.monotonic', return_value=now):
+                        app.hands.update()
+
+                frame(origin, .8)
+                frame(origin, .1)
+                self.assertIn('Left', app.puzzle.held)
+                for step in range(1, fps * 2 + 1):
+                    fraction = step / (fps * 2)
+                    position = tuple(a + (b - a) * fraction for a, b in zip(origin, target))
+                    frame(position, .1)
+                for _ in range(fps):
+                    frame(target, .1)
+                self.capture(f'precision-drag-{grid}-{fps}fps')
+                frame((target[0] + 25, target[1] + 25), .8)
+                self.assertEqual(app.puzzle.board[0], 0)
+                self.assertEqual(app.puzzle.correct_count, 1)
+                self.assertEqual(app.puzzle.moves, 1)
+                self.assertFalse(app.puzzle.held)
+
+    def test_two_magnifiers_render_without_mutating_board(self):
+        app = self.app
+        app.hands.session = Mock()
+        app.grid_size = 32
+        app._new_puzzle()
+        app._resize((1000, 720))
+        app.puzzle.pick_up('mouse', Location('tray', 0))
+        app.puzzle.drop('mouse', Location('board', 330))
+        app.hands.positions = {'Left': app.layout.board_cells[330].center,
+                               'Right': app.layout.board_cells[334].center}
+        hands = tuple(Hand(key, .08 + .84 * x / 999, .10 + .80 * y / 719, .8)
+                      for key, (x, y) in app.hands.positions.items())
+        app.hands.gestures.update(hands, 1)
+        before = app.puzzle.board.copy()
+        self.capture('precision-two-hands')
+        self.assertEqual(before, app.puzzle.board)
+        app._activate('reference')
+        self.assertFalse(app.hands.positions)
+
+    def test_stale_camera_frame_cannot_grab_or_release_a_piece(self):
+        app = self.app
+        app.hands.session = Mock()
+        app.hands.started = 100
+        x, y = app.layout.tray_cells[0].center
+        width, height = app.screen.get_size()
+        def hand(ratio):
+            return Hand('Left', .08 + .84 * x / (width - 1),
+                        .10 + .80 * y / (height - 1), ratio)
+        for timestamp, ratio, now, held in ((100, .8, 100, False),
+                                           (100.1, .1, 100.1, True),
+                                           (100.2, .8, 105, False),
+                                           (105.1, .1, 105.1, False)):
+            app.hands.session.poll.return_value = CameraFrame(timestamp, (hand(ratio),))
+            with patch('puzzle.hand_input.monotonic', return_value=now):
+                app.hands.update()
+            self.assertEqual(bool(app.puzzle.held), held)
+        self.assertEqual(app.puzzle.moves, 0)
+
+    def test_landmark_preview_and_stale_frame_clearing(self):
+        app = self.app
+        app.grid_size = 32
+        app._new_puzzle()
+        app._resize((1000, 720))
+        session = Mock()
+        app.hands.session = session
+        app.hands.started = 100
+        points = ((.5,.88), (.38,.76), (.3,.64), (.23,.55), (.16,.5),
+                  (.4,.59), (.39,.42), (.38,.29), (.37,.16),
+                  (.51,.56), (.52,.37), (.52,.23), (.52,.1),
+                  (.62,.58), (.65,.42), (.66,.29), (.67,.18),
+                  (.72,.64), (.77,.52), (.79,.42), (.81,.33))
+        hand = Hand('Left', *points[8], .8, points)
+        preview = pygame.Surface((160, 120))
+        preview.fill('#343c43')
+        raw = pygame.image.tobytes(preview, 'RGB')
+        session.poll.return_value = CameraFrame(100, (hand,), raw)
+        with patch('puzzle.hand_input.monotonic', return_value=100):
+            app.hands.update()
+        self.assertNotEqual(pygame.image.tobytes(app.hands.preview, 'RGB'), raw)
+        self.capture('finger-landmark-preview')
+        session.poll.return_value = None
+        with patch('puzzle.hand_input.monotonic', return_value=101):
+            app.hands.update()
+        self.assertIsNone(app.hands.preview)
+        self.assertFalse(app.hands.positions)
+
 
 if __name__ == "__main__":
     unittest.main()

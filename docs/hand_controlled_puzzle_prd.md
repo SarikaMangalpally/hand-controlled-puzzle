@@ -246,6 +246,12 @@ Recommended ranking order:
 - Improve tile selection accuracy.
 - Tune precision for large grids, including 32x32.
 - Add visual hand cursor feedback.
+- Preserve all 21 hand landmarks for visible finger-point feedback. Keep markers
+  visible in the camera preview during accuracy validation, as requested by the user.
+- Anchor pinch pickup/release to the last aimed/held position and use the
+  thumb/index midpoint during dragging to reduce articulation-induced movement.
+- Use non-interactive magnified board views near hand cursors for large grids,
+  as confirmed by the user. Preserve the original board's placement coordinates.
 
 ## 13. Success Criteria
 
@@ -266,7 +272,7 @@ The project is successful when:
 These decisions can be finalized while building:
 
 - Preview currently has a visibility checkbox; validate its default during usability testing.
-- Whether large-grid hand input needs further board zoom or magnified tile selection.
+- Live placement accuracy and responsiveness with near-cursor magnifiers.
 - The exact gesture for optional one-finger grab/release controls.
 
 ## 15. Living Change Log

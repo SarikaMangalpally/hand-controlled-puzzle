@@ -1,13 +1,16 @@
 """Isolated webcam capture and MediaPipe inference; no Pygame dependency."""
 
 from dataclasses import dataclass
-from math import hypot
+from math import hypot, isfinite
 from pathlib import Path
 from queue import Empty, Full
 import multiprocessing
 import time
 
 from .gestures import Hand
+
+
+MAX_FRAME_AGE = 0.5
 
 
 @dataclass(frozen=True)
@@ -44,7 +47,8 @@ class HandDetector:
         height, width = rgb.shape[:2]
         hands = []
         for points, labels in zip(result.hand_landmarks, result.handedness):
-            if not labels or labels[0].score < 0.6 or len(points) != 21:
+            if (not labels or labels[0].score < 0.6 or len(points) != 21
+                    or not all(isfinite(p.x) and isfinite(p.y) for p in points)):
                 continue
 
             def distance(a, b):
@@ -54,7 +58,8 @@ class HandDetector:
             palm = distance(0, 9)
             if palm > 1:
                 hands.append(Hand(labels[0].category_name, points[8].x, points[8].y,
-                                  distance(4, 8) / palm))
+                                  distance(4, 8) / palm,
+                                  tuple((p.x, p.y) for p in points)))
         return tuple(hands)
 
     def close(self):

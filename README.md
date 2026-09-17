@@ -69,17 +69,35 @@ input remains available in Hands mode. The camera preview can be hidden using
 its checkbox; hiding the preview does not stop capture.
 
 Open the thumb/index pinch first, then pinch to grab and open to release. The
-index fingertip drives the cursor. Left and right hands have independent
+index fingertip drives aiming. Closing the pinch keeps the last aimed position;
+while pinched, the thumb/index midpoint moves the cursor with an offset that
+prevents a jump. Opening releases at the last held position, so finger extension
+does not shift the drop into another cell. Left and right hands have independent
 cursors and can hold different pieces. Pinch/release also activates game buttons.
 Frames are mirrored, processed locally, and never recorded or uploaded.
 The bundled MediaPipe model makes gameplay offline after dependency installation.
 
+The camera preview shows all 21 tracked landmarks and finger connections.
+The thumb tip is yellow, the index tip cyan, and a white line connects them
+while the pinch is active. Other markers match the hand's cursor color.
+Markers remain enabled for tracking validation; hiding the camera preview also
+hides them. Stale previews are cleared. These visual checks do not establish
+tracking accuracy on their own.
+
 Tracking loss, ambiguous hand identity, large cursor jumps, focus loss, and
 resizing cancel held moves safely. Open the pinch again before grabbing after
-cancellation. Camera errors fall back to mouse controls. Initial smoothing and
-pinch hysteresis are implemented; real-world precision tuning, especially for
-32x32 grids, remains Phase 7. Live two-hand detection and pinch recognition were
-verified; full in-game hand-placement usability testing is still pending.
+cancellation. Camera errors fall back to mouse controls. Adaptive smoothing
+steadies slow aiming and follows faster drags more closely. Pinch hysteresis
+keeps the grab and release thresholds separate.
+
+For grids above 9x9, each hand over the board has a nearby 3x3-cell magnifier.
+Its center outlines the target cell and previews a held piece over an empty
+destination. Occupied cells still reject drops. Magnifiers avoid both hand
+cursors and one another; they are visual aids, not separate drop targets.
+Live two-hand detection and pinch recognition were verified, but a later check
+showed low throughput and an occasional stale frame. Live responsiveness and
+full in-game placement usability remain open; synthetic tests are not a claim
+of reliable real-world 32x32 accuracy.
 The pinned MediaPipe 0.10.21 build passed local model inference; 1.0.1 crashed
 during model initialization on the development Mac and is not used.
 
@@ -107,6 +125,15 @@ saves no frames), run:
 PYTHONPATH=src .venv/bin/python tests/webcam_smoke.py
 ```
 
+To practice with visible markers in a disposable 4x4 puzzle for 30 seconds:
+
+```sh
+PYTHONPATH=src .venv/bin/python tests/live_controls.py
+```
+
+This explicitly opens the webcam, saves no footage, and removes the temporary
+profile afterward. Use the normal game launcher for an unrestricted session.
+
 The development Mac passed this check after camera permission was granted:
 167 frames, up to two hands, 9 pinch events, and 7 release events in 20 seconds.
 The camera worker shut down cleanly. This does not yet verify in-game placement
@@ -124,6 +151,8 @@ Read [project instructions](docs/project_instructions.md), the
 - `src/puzzle/gestures.py`: smoothing, pinch hysteresis, and independent hand states.
 - `src/puzzle/camera.py`: isolated webcam worker and MediaPipe inference.
 - `src/puzzle/hand_input.py`: camera lifecycle and gesture-to-game integration.
+- `src/puzzle/precision.py`: non-interactive, collision-aware hand magnifiers.
+- `src/puzzle/landmarks.py`: camera-preview joint markers and active-pinch feedback.
 - `src/puzzle/menus.py`: profile, gallery/setup, and leaderboard screens.
 - `src/puzzle/storage.py`: SQLite profiles, attempts, rankings, and personal bests.
 - `src/puzzle/gallery.py`: image import, local copies, and gallery discovery.

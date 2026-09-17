@@ -13,6 +13,7 @@ from .storage import Store
 from .gallery import Gallery, choose_image, square_image
 from .menus import Menus
 from .hand_input import HandInput
+from .precision import draw_magnifiers
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -534,6 +535,7 @@ class PuzzleApp:
             self._draw_modal()
         if self.viewing_reference:
             self._draw_reference()
+        draw_magnifiers(self)
         self.hands.draw_cursors()
 
     def _draw_modal(self) -> None:

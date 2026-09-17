@@ -10,7 +10,7 @@
 | 4 | Timer and valid-move tracking | Complete; 27 tests passing |
 | 5 | SQLite profiles/results, gallery/upload, custom 2-32 grids | Complete; 41 tests passing |
 | 6 | Webcam, two-hand tracking, thumb/index pinch | Implemented; 55 tests passing; live two-hand detection and pinch check passed |
-| 7 | Gesture smoothing, tracking-loss behavior, expert tuning | Pending |
+| 7 | Gesture smoothing, tracking-loss behavior, expert tuning | Precision/landmark checkpoint; 72 tests pass; live responsiveness/usability open |
 
 ## Phase 1 Design
 
@@ -82,12 +82,59 @@ Full in-game placement accuracy, tracking stability, and large-grid comfort
 remain Phase 7 acceptance checks. `tests/webcam_smoke.py` is a separate manual,
 opt-in check that reports counts and saves no frames.
 
-## Open Decisions For Later Phases
+## Phase 7 Precision Checkpoint
+
+The user chose magnified views near the hand cursors. Grids above 9x9 now show
+3x3-cell magnifiers, with a target outline and translucent held-piece preview
+for empty cells. They avoid both cursors and each other, and do not alter input
+hit testing. Cursor rings leave the small tile center visible. Adaptive
+time-based smoothing damps slow aiming while reducing lag during fast drags.
+
+Tests cover jitter at 8/15/30/60 FPS, fast-motion tracking, subpixel settling,
+synthetic 2x2 and 32x32 corner placement at 8/30 FPS, stale-frame rejection,
+and magnifier bounds/collision checks. Screenshots were inspected; native
+two-magnifier rendering and clean shutdown passed without camera access.
+
+A separately authorized 20-second live check processed 111 frames (5.5 FPS),
+detected both hands, and registered 6 pinches / 4 releases. Diagnostics recorded
+6 cancellations, including 2 interrupted pinches; none remained held at exit.
+Median frame age was 99 ms, with a 4,910 ms maximum. These results expose a
+throughput/stall issue and do not establish improvement over the prior check.
+The game already rejects frames older than 500 ms. The manual diagnostic now
+shares that cutoff and reports rejected frames; this diagnostic revision has
+not yet been rerun on camera. Capture/inference performance investigation and
+real in-game placement acceptance remain open. No camera frames were saved.
+
+## Finger-Point Follow-Up
+
+The user confirmed both visible finger markers and landmark-based control
+refinements. All 21 normalized joint positions are retained from inference.
+The preview draws finger connections and joint markers, highlights thumb/index
+tips, and connects an active pinch. Invalid landmarks cannot generate gestures,
+and stale camera previews clear. No extra image processing or inference model
+was introduced.
+
+Aiming uses the index fingertip; pinched movement uses the thumb/index midpoint
+with an offset captured at pickup. Pickup and release retain the last aimed/held
+position instead of moving with the fingers as they close/open. Tests cover
+both transition jumps, midpoint dragging, landmark preservation, invalid points,
+preview rendering, stale clearing, and 32x32 placement despite a 25-pixel opening
+motion. The full suite passes 72 tests. Marker screenshots use synthetic points,
+not webcam images.
+
+An authorized 30-second native gameplay check then ran with visible markers
+and a disposable profile. It ended with 3 moves, 0 correctly placed pieces,
+2 hands detected, and no held pieces. Camera shutdown and temporary-data cleanup
+completed successfully. The count does not distinguish mouse from hand moves;
+user confirmation of gesture accuracy is still pending. `tests/live_controls.py`
+provides this explicit opt-in test without recording camera frames.
+
+## Remaining Decisions
 
 SQLite, local profiles without passwords, uploaded/built-in pictures, and custom
 grids through 32x32 are confirmed. No incorrect-move penalties apply. Remaining
-decisions concern optional one-finger gestures and
-further large-grid magnification. Initial hand input will use thumb/index pinching.
+decisions concern optional one-finger gestures. Large-grid magnification uses
+the user-selected near-cursor views. Initial hand input uses thumb/index pinching.
 
 ## Git
 
@@ -98,7 +145,8 @@ Each phase has its own checkpoint branch, stacked from the preceding phase:
 - `feat/phase-3-difficulty`.
 - `feat/phase-4-scoring`.
 - `feat/phase-5-profiles-gallery`.
-- `feat/phase-6-hand-tracking`, containing the current build.
+- `feat/phase-6-hand-tracking`.
+- `feat/phase-7-gesture-polish`, containing the current precision checkpoint.
 
 Changes are not merged into `master`. No remote is configured. Merging follows
 approval; pushing also requires a configured remote.

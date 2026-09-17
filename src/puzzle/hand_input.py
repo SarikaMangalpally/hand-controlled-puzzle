@@ -4,8 +4,9 @@ from time import monotonic
 
 import pygame
 
-from .camera import CameraSession
+from .camera import MAX_FRAME_AGE, CameraSession
 from .gestures import Gestures
+from .landmarks import draw_landmarks
 
 
 class HandInput:
@@ -63,18 +64,23 @@ class HandInput:
             self.app._notify('Camera timed out. Check camera permission, then try Hands again.')
             return
         timestamp = frame.timestamp if frame else self.last_frame
-        if timestamp is not None and now - timestamp > 0.5:
+        if timestamp is not None and now - timestamp > MAX_FRAME_AGE:
             self.reset()
+            self.preview = None
             self.status = 'Tracking interrupted'
             return
         if frame is None:
             return
         self.last_frame = frame.timestamp
+        self.preview = None
         if frame.preview:
             self.preview = pygame.image.frombytes(frame.preview, (160, 120), 'RGB')
         if not self.focused or self.app.scene != 'puzzle':
+            if self.preview is not None:
+                draw_landmarks(self.preview, frame.hands, {})
             return
-        self.status = f'{len(frame.hands)} hands detected'
+        count = len(frame.hands)
+        self.status = f'{count} hand{"s" if count != 1 else ""} detected'
         generation = self.generation
         width, height = self.app.screen.get_size()
         for event in self.gestures.update(frame.hands, frame.timestamp):
@@ -91,11 +97,18 @@ class HandInput:
                     self.app.pointer_down(event.identity, position)
                 elif event.phase == 'up':
                     self.app.pointer_up(event.identity, position)
+        if self.preview is not None:
+            draw_landmarks(self.preview, frame.hands, self.gestures.states)
 
     def draw_cursors(self):
         for identity, position in self.positions.items():
             color = '#147d6b' if identity == 'Left' else '#bd4057'
-            pygame.draw.circle(self.app.screen, 'white', position, 12, 3)
-            pygame.draw.circle(self.app.screen, color, position, 9,
-                               0 if self.gestures.states[identity].pressed else 2)
-            self.app.text(identity[0], (position[0] + 14, position[1] - 10), 14, color)
+            pygame.draw.circle(self.app.screen, 'white', position, 9, 2)
+            pygame.draw.circle(self.app.screen, color, position, 7, 2)
+            pygame.draw.circle(self.app.screen, color, position, 1)
+            if self.gestures.states[identity].pressed:
+                pygame.draw.circle(self.app.screen, color, position, 4, 1)
+            label = self.app.fonts[14].render(identity[0], True, color)
+            rect = label.get_rect(topleft=(position[0] + 12, position[1] - 10))
+            rect.clamp_ip(self.app.screen.get_rect())
+            self.app.screen.blit(label, rect)

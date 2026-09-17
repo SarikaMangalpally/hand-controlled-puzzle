@@ -2,12 +2,33 @@ from pathlib import Path
 from queue import Queue
 from threading import Event
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from puzzle.camera import CameraFrame, HandDetector, _capture, _publish
 
 
 class CameraTests(unittest.TestCase):
+    def test_detector_preserves_all_points_and_uses_aspect_correct_pinch(self):
+        detector = HandDetector.__new__(HandDetector)
+        detector.mp = Mock()
+        detector.detector = Mock()
+        detector.last_timestamp = -1
+        points = [SimpleNamespace(x=.5, y=.5) for _ in range(21)]
+        points[0].y = .8
+        points[9].y = .6
+        points[4].x = .45
+        detector.detector.detect_for_video.return_value = SimpleNamespace(
+            hand_landmarks=[points], handedness=[[SimpleNamespace(score=.9, category_name='Left')]])
+        hands = detector.detect(SimpleNamespace(shape=(480, 640, 3)), 1)
+        self.assertEqual(len(hands[0].landmarks), 21)
+        self.assertEqual(hands[0].landmarks[4], (.45, .5))
+        self.assertAlmostEqual(hands[0].pinch_ratio, 32 / 96)
+        self.assertEqual(hands[0].pinch_center, (.475, .5))
+        points[12].x = float('nan')
+        self.assertEqual(detector.detect(SimpleNamespace(shape=(480, 640, 3)), 1), ())
+        self.assertEqual(detector.last_timestamp, 2)
+
     def test_missing_model_fails_without_loading_native_runtime(self):
         with self.assertRaises(FileNotFoundError):
             HandDetector(Path('/nonexistent/puzzle-test.task'))
