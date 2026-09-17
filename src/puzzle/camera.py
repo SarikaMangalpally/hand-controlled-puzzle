@@ -11,6 +11,8 @@ from .gestures import Hand
 
 
 MAX_FRAME_AGE = 0.5
+# Calibrated to the player's physical hands for our horizontally mirrored feed.
+PLAYER_HAND = {'Left': 'Right', 'Right': 'Left'}
 
 
 @dataclass(frozen=True)
@@ -56,8 +58,9 @@ class HandDetector:
                              (points[a].y - points[b].y) * height)
 
             palm = distance(0, 9)
-            if palm > 1:
-                hands.append(Hand(labels[0].category_name, points[8].x, points[8].y,
+            identity = PLAYER_HAND.get(labels[0].category_name)
+            if palm > 1 and identity is not None:
+                hands.append(Hand(identity, points[8].x, points[8].y,
                                   distance(4, 8) / palm,
                                   tuple((p.x, p.y) for p in points)))
         return tuple(hands)

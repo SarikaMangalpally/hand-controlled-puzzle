@@ -504,20 +504,6 @@ class PuzzleApp:
                     if tile is not None or self.puzzle.held:
                         pygame.draw.rect(self.screen, color, rect.inflate(-2, -2), 3)
 
-        for identity, held in self.puzzle.held.items():
-            position = self.pointer if identity == 'mouse' else self.hands.positions.get(identity)
-            if position is None:
-                continue
-            tile = held.tile
-            area = "board" if self.layout.board.collidepoint(position) else "tray"
-            surface = self.tiles[area][tile]
-            rect = surface.get_rect(center=position)
-            shadow = pygame.Surface((rect.width + 8, rect.height + 8), pygame.SRCALPHA)
-            shadow.fill((20, 35, 35, 45))
-            self.screen.blit(shadow, rect.move(4, 4))
-            self.screen.blit(surface, rect)
-            pygame.draw.rect(self.screen, ACCENT, rect, 3)
-
         if target is not None and self.puzzle.size > 9 and self.hands.session is None:
             tile = self.puzzle.tile_at(target)
             if tile is not None:
@@ -536,7 +522,35 @@ class PuzzleApp:
         if self.viewing_reference:
             self._draw_reference()
         draw_magnifiers(self)
+        if self._can_play():
+            self._draw_held_pieces()
         self.hands.draw_cursors()
+
+    def _held_rect(self, identity, position):
+        if identity == 'mouse':
+            area = 'board' if self.layout.board.collidepoint(position) else 'tray'
+            edge = self.tiles[area][0].get_width()
+        else:
+            edge = max(48, min(96, self.tiles['tray'][0].get_width()))
+        rect = pygame.Rect(0, 0, edge, edge)
+        rect.center = position
+        return rect.clamp(self.screen.get_rect())
+
+    def _draw_held_pieces(self):
+        for identity, held in self.puzzle.held.items():
+            position = self.pointer if identity == 'mouse' else self.hands.positions.get(identity)
+            if position is None:
+                continue
+            rect = self._held_rect(identity, position)
+            area = 'board' if identity == 'mouse' and self.layout.board.collidepoint(position) else 'tray'
+            surface = pygame.transform.smoothscale(self.tiles[area][held.tile], rect.size)
+            shadow = pygame.Surface(rect.size, pygame.SRCALPHA)
+            shadow.fill((20, 35, 35, 80))
+            self.screen.blit(shadow, rect.move(4, 4))
+            self.screen.blit(surface, rect)
+            color = RED if identity == 'Right' else ACCENT
+            pygame.draw.rect(self.screen, 'white', rect, 4)
+            pygame.draw.rect(self.screen, color, rect, 2)
 
     def _draw_modal(self) -> None:
         self._shade((25, 34, 39, 145))

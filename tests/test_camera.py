@@ -22,12 +22,28 @@ class CameraTests(unittest.TestCase):
             hand_landmarks=[points], handedness=[[SimpleNamespace(score=.9, category_name='Left')]])
         hands = detector.detect(SimpleNamespace(shape=(480, 640, 3)), 1)
         self.assertEqual(len(hands[0].landmarks), 21)
+        self.assertEqual(hands[0].identity, 'Right')
         self.assertEqual(hands[0].landmarks[4], (.45, .5))
         self.assertAlmostEqual(hands[0].pinch_ratio, 32 / 96)
         self.assertEqual(hands[0].pinch_center, (.475, .5))
         points[12].x = float('nan')
         self.assertEqual(detector.detect(SimpleNamespace(shape=(480, 640, 3)), 1), ())
         self.assertEqual(detector.last_timestamp, 2)
+
+    def test_mirrored_feed_swaps_labels_once_without_flipping_coordinates(self):
+        detector = HandDetector.__new__(HandDetector)
+        detector.mp = Mock()
+        detector.detector = Mock()
+        detector.last_timestamp = -1
+        points = [SimpleNamespace(x=.2, y=.4) for _ in range(21)]
+        points[0].y = .8
+        for label, expected in (('Left', 'Right'), ('Right', 'Left')):
+            detector.detector.detect_for_video.return_value = SimpleNamespace(
+                hand_landmarks=[points], handedness=[[SimpleNamespace(score=.9, category_name=label)]])
+            hand, = detector.detect(SimpleNamespace(shape=(480, 640, 3)), 1)
+            self.assertEqual(hand.identity, expected)
+            self.assertEqual((hand.x, hand.y), (.2, .4))
+            self.assertEqual(hand.landmarks[8], (.2, .4))
 
     def test_missing_model_fails_without_loading_native_runtime(self):
         with self.assertRaises(FileNotFoundError):

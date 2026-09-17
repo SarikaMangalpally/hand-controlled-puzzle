@@ -148,6 +148,32 @@ and temporary-profile removal completed normally. This summary does not identify
 which moves used hand versus mouse input or independently prove simultaneous
 replacement; user feedback on smoothness and the two-hand workflow is pending.
 
+## Held Visibility And Hand Labels
+
+The user reported missing held-piece visuals and reversed physical left/right
+labels. The capture code mirrors once before inference. A single detector-boundary
+label reversal now corrects the user's reported mapping without flipping cursor
+coordinates again. This is a calibration for the current camera setup, not a
+universal claim about every MediaPipe camera configuration.
+
+Held hand tiles previously shrank to the board-cell size and could be obscured
+by cursor/magnifier drawing. They now remain 48-96 pixels across, draw after
+magnifiers, stay within window bounds, and have hand-colored outlines and a
+full `Left: held` / `Right: held` ownership label. Mouse tile sizing is preserved.
+The drop still targets the cursor center, not the enlarged thumbnail bounds.
+
+All 75 tests pass, including both label directions with unchanged coordinates,
+pixel-level visibility of two held pieces on 4x4 and 32x32 boards, off-board
+movement, screen edges, and released-piece placement. Synthetic screenshots
+were inspected. Physical-hand mapping and live held visibility await user testing;
+tracking loss still cancels a hold, which these rendering changes do not hide.
+
+An authorized one-minute native check then completed with 5 moves, 1 correct
+placement, 2 hands detected, and 1 piece held immediately before shutdown.
+The camera stopped and temporary profile was removed. User confirmation of
+physical labels and visible held images remains pending; aggregate move counts
+cannot verify either issue independently.
+
 ## Remaining Decisions
 
 SQLite, local profiles without passwords, uploaded/built-in pictures, and custom
@@ -167,6 +193,7 @@ Each phase has its own checkpoint branch, stacked from the preceding phase:
 - `feat/phase-6-hand-tracking`.
 - `feat/phase-7-gesture-polish`, containing the current precision checkpoint.
 - `feat/two-hand-practice`, containing the same-frame replacement fix and longer practice.
+- `fix/hand-labels-held-visibility`, containing the current visual/label fixes.
 
 Changes are not merged into `master`. No remote is configured. Merging follows
 approval; pushing also requires a configured remote.

@@ -520,6 +520,36 @@ class AppTests(unittest.TestCase):
                 self.assertEqual(app.puzzle.moves, 3)
                 self.assertEqual(sorted(v for v in app.puzzle.board + app.puzzle.tray if v is not None), list(range(16)))
 
+    def test_both_held_pieces_remain_visible_above_board_and_magnifiers(self):
+        app = self.app
+        app.hands.session = Mock()
+        for grid in (4, 32):
+            app.grid_size = grid
+            app._new_puzzle()
+            app._resize((1000, 720))
+            for identity, index in (('Left', 0), ('Right', 1)):
+                app.puzzle.pick_up(identity, Location('tray', index))
+            app.hands.gestures.update((Hand('Left', .3, .5, .8), Hand('Right', .6, .5, .8)), 1)
+            for positions in (((180, 340), (380, 340)), ((480, 650), (700, 650)),
+                              ((0, 0), (999, 719))):
+                app.hands.positions = dict(zip(('Left', 'Right'), positions))
+                app.draw()
+                for identity, position in app.hands.positions.items():
+                    rect = app._held_rect(identity, position)
+                    self.assertGreaterEqual(rect.width, 48)
+                    self.assertTrue(app.screen.get_rect().contains(rect))
+                    tile = app.puzzle.held[identity].tile
+                    expected = pygame.transform.smoothscale(app.tiles['tray'][tile], rect.size)
+                    self.assertEqual(app.screen.get_at((rect.x + 8, rect.y + 8)), expected.get_at((8, 8)))
+                if positions[0] == (180, 340):
+                    self.capture(f'held-visible-{grid}')
+            destination = app.layout.board_cells[2].center
+            tile = app.puzzle.held['Left'].tile
+            app.pointer_up('Left', destination)
+            app.draw()
+            self.assertNotIn('Left', app.puzzle.held)
+            self.assertEqual(app.puzzle.board[2], tile)
+
 
 if __name__ == "__main__":
     unittest.main()

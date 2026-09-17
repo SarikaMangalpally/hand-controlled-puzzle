@@ -75,6 +75,12 @@ prevents a jump. Opening releases at the last held position, so finger extension
 does not shift the drop into another cell. Left and right hands have independent
 cursors and can hold different pieces. Pinch/release also activates game buttons.
 Frames are mirrored, processed locally, and never recorded or uploaded.
+Hand labels are swapped once at the detector boundary to match the physical-hand
+reversal reported on this camera setup; mirrored cursor coordinates are unchanged.
+Held pieces stay at a visible thumbnail size (48-96 pixels) while moving, above
+the board and magnifiers. Each cursor displays its full hand name and adds
+`held` only when it actually owns a piece. The cursor center remains the drop
+position even when the thumbnail is clamped inside a window edge.
 The bundled MediaPipe model makes gameplay offline after dependency installation.
 
 The camera preview shows all 21 tracked landmarks and finger connections.

@@ -111,7 +111,10 @@ class HandInput:
             pygame.draw.circle(self.app.screen, color, position, 1)
             if self.gestures.states[identity].pressed:
                 pygame.draw.circle(self.app.screen, color, position, 4, 1)
-            label = self.app.fonts[14].render(identity[0], True, color)
-            rect = label.get_rect(topleft=(position[0] + 12, position[1] - 10))
+            held = identity in self.app.puzzle.held
+            label = self.app.fonts[14].render(f'{identity}: held' if held else identity, True, color)
+            offset = self.app._held_rect(identity, position).width // 2 + 6 if held else 12
+            rect = label.get_rect(topleft=(position[0] + offset, position[1] - 10))
             rect.clamp_ip(self.app.screen.get_rect())
+            pygame.draw.rect(self.app.screen, 'white', rect.inflate(4, 2))
             self.app.screen.blit(label, rect)
